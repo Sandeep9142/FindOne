@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   FINDONE — Global Styles & Custom Utilities
+   ============================================ */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply font-sans text-body text-slate-700 bg-white;
+  }
+
+  ::selection {
+    @apply bg-primary-500/20 text-primary-700;
+  }
+
+  /* focus ring style */
+  *:focus-visible {
+    @apply outline-2 outline-primary-500/50 outline-offset-2;
+  }
+}
+
+@layer components {
+  /* --- Container --- */
+  .container-app {
+    @apply max-w-[1200px] mx-auto px-5 sm:px-6;
+  }
+
+  /* --- Gradient Text --- */
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+
+  /* --- Section --- */
+  .section {
+    @apply py-20 md:py-28;
+  }
+
+  .section--gray {
+    @apply bg-slate-50;
+  }
+
+  .section--dark {
+    @apply bg-dark text-white;
+  }
+
+  /* --- Overline Label --- */
+  .overline {
+    @apply text-caption font-semibold uppercase tracking-[0.12em] text-primary-500;
+  }
+
+  .overline--teal {
+    @apply text-secondary-500;
+  }
+
+  /* --- Scrollbar --- */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+}
+
+@layer utilities {
+  /* Logo scroll animation */
+  .animate-scroll-x {
+    animation: scroll 30s linear infinite;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 60px rgba(37, 99, 235, 0.15);
+  }
+
+  .glow-teal {
+    box-shadow: 0 0 40px rgba(20, 184, 166, 0.2);
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-slate-900/80 backdrop-blur-xl border border-white/5;
+  }
+}

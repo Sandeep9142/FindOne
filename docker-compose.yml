@@ -1,0 +1,50 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: findone-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  server:
+    build:
+      context: ./server
+    container_name: findone-server
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      PORT: 8000
+      NODE_ENV: production
+      CLIENT_URL: http://localhost:3000
+      MONGODB_URI: mongodb://mongo:27017/findone
+      JWT_SECRET: change-this-secret
+      JWT_EXPIRES_IN: 7d
+      SERVER_URL: http://localhost:8000
+      UPLOAD_DIR: uploads
+      MAX_IMAGE_SIZE_MB: 5
+      API_RATE_LIMIT_MAX: 300
+      AUTH_RATE_LIMIT_MAX: 20
+      RATE_LIMIT_WINDOW_MS: 900000
+    ports:
+      - "8000:8000"
+    volumes:
+      - server_uploads:/app/uploads
+
+  client:
+    build:
+      context: ./client
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api/v1
+    container_name: findone-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo_data:
+  server_uploads:

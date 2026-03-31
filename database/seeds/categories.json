@@ -1,0 +1,66 @@
+[
+  {
+    "slug": "home-repairs",
+    "name": "Home Repairs",
+    "description": "General home maintenance and repair services.",
+    "icon": "Wrench",
+    "isActive": true,
+    "sortOrder": 1
+  },
+  {
+    "slug": "cleaning",
+    "name": "Cleaning",
+    "description": "Home and office cleaning services.",
+    "icon": "Sparkles",
+    "isActive": true,
+    "sortOrder": 2
+  },
+  {
+    "slug": "electrical",
+    "name": "Electrical",
+    "description": "Electrical installation, repair, and maintenance.",
+    "icon": "Zap",
+    "isActive": true,
+    "sortOrder": 3
+  },
+  {
+    "slug": "plumbing",
+    "name": "Plumbing",
+    "description": "Plumbing repairs, fitting, and inspection services.",
+    "icon": "Droplets",
+    "isActive": true,
+    "sortOrder": 4
+  },
+  {
+    "slug": "beauty",
+    "name": "Beauty and Wellness",
+    "description": "Beauty, salon, and wellness services.",
+    "icon": "CalendarHeart",
+    "isActive": true,
+    "sortOrder": 5
+  },
+  {
+    "slug": "tutoring",
+    "name": "Tutoring",
+    "description": "Academic and skills-based tutoring services.",
+    "icon": "GraduationCap",
+    "isActive": true,
+    "sortOrder": 6
+  },
+  {
+    "slug": "delivery",
+    "name": "Delivery",
+    "description": "Local delivery and logistics services.",
+    "icon": "Truck",
+    "isActive": true,
+    "sortOrder": 7
+  },
+  {
+    "slug": "tech-support",
+    "name": "Tech Support",
+    "description": "Device setup, troubleshooting, and digital support.",
+    "icon": "Monitor",
+    "isActive": true,
+    "sortOrder": 8
+  }
+]

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://findone.in/sitemap.xml

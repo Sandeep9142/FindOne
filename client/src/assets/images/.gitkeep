@@ -1,0 +1,17 @@
+/* 
+ * Place static image assets here.
+ * Recommended organization:
+ * 
+ * images/
+ *   logo/
+ *     logo-dark.svg
+ *     logo-white.svg
+ *     logo-icon.svg
+ *   hero/
+ *     hero-bg.webp
+ *   avatars/
+ *     placeholder.svg
+ *   illustrations/
+ *     not-found.svg
+ *     empty-state.svg
+ */

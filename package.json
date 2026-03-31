@@ -1,0 +1,21 @@
+{
+  "name": "findone",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FindOne monorepo command hub",
+  "scripts": {
+    "install:client": "npm install --prefix client",
+    "install:server": "npm install --prefix server",
+    "install:all": "npm install --prefix client && npm install --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:client": "npm run build --prefix client",
+    "preview:client": "npm run preview --prefix client",
+    "lint:client": "npm run lint --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "start:server": "npm run start --prefix server",
+    "seed:categories": "npm run seed:categories --prefix server",
+    "seed:demo": "npm run seed:demo --prefix server",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  }
+}

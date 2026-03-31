@@ -1,0 +1,11 @@
+export { default as HeroSection } from './HeroSection';
+export { default as TrustBar } from './TrustBar';
+export { default as HowItWorks } from './HowItWorks';
+export { default as CategoriesSection } from './CategoriesSection';
+export { default as FeaturesSection } from './FeaturesSection';
+export { default as AIFeaturesSection } from './AIFeaturesSection';
+export { default as ForWorkersSection } from './ForWorkersSection';
+export { default as ForClientsSection } from './ForClientsSection';
+export { default as TestimonialsSection } from './TestimonialsSection';
+export { default as StatsSection } from './StatsSection';
+export { default as CTASection } from './CTASection';
