@@ -37,12 +37,19 @@ export default function RegisterPage() {
     setError("");
 
     try {
-      const user = await register({
+      const payload = {
         fullName: `${form.firstName} ${form.lastName}`.trim(),
         email: form.email,
-        phone: form.phone,
         password: form.password,
         role: form.role,
+      };
+
+      if (form.phone?.trim()) {
+        payload.phone = form.phone.trim();
+      }
+
+      const user = await register({
+        ...payload,
       });
 
       showToast("Account created successfully");
