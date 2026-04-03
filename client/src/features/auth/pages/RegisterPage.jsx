@@ -22,10 +22,38 @@ export default function RegisterPage() {
     role: defaultRole,
   });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    phone: "",
+  });
+
+  function parseRegisterError(registerError) {
+    const message = registerError?.message || "Unable to create account";
+    const lowered = message.toLowerCase();
+
+    if (lowered.includes("email") && lowered.includes("registered")) {
+      return {
+        message: "This email is already registered. Please log in or use a different email.",
+        field: "email",
+      };
+    }
+
+    if (lowered.includes("phone") && lowered.includes("registered")) {
+      return {
+        message: "This phone number is already registered. Please use a different phone number.",
+        field: "phone",
+      };
+    }
+
+    return { message, field: "" };
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+    if (name === "email" || name === "phone") {
+      setFieldErrors((current) => ({ ...current, [name]: "" }));
+    }
   }
 
   function handleRoleChange(role) {
@@ -35,6 +63,7 @@ export default function RegisterPage() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    setFieldErrors({ email: "", phone: "" });
 
     try {
       const payload = {
@@ -55,7 +84,13 @@ export default function RegisterPage() {
       showToast("Account created successfully");
       navigate(getDashboardPath(user?.role), { replace: true });
     } catch (registerError) {
-      setError(registerError.message || "Unable to create account");
+      const parsedError = parseRegisterError(registerError);
+      setError(parsedError.message);
+      showToast(parsedError.message, "error");
+
+      if (parsedError.field) {
+        setFieldErrors((current) => ({ ...current, [parsedError.field]: parsedError.message }));
+      }
     }
   }
 
@@ -92,6 +127,7 @@ export default function RegisterPage() {
           placeholder="you@example.com"
           value={form.email}
           onChange={handleChange}
+          error={fieldErrors.email}
           required
         />
         <Input
@@ -101,6 +137,7 @@ export default function RegisterPage() {
           placeholder="+91 98765 43210"
           value={form.phone}
           onChange={handleChange}
+          error={fieldErrors.phone}
         />
         <Input
           label="Password"
