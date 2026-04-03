@@ -21,6 +21,8 @@ export default function DashboardLayout() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const showToast = useUIStore((state) => state.showToast);
+  const isWorker = user?.role === 'worker';
+  const isClientOrAdmin = user?.role === 'client' || user?.role === 'admin';
 
   const primaryDashboardLink = {
     to: getDashboardPath(user?.role),
@@ -31,7 +33,7 @@ export default function DashboardLayout() {
   const sidebarLinks = [
     primaryDashboardLink,
     { to: '/jobs', label: user?.role === 'worker' ? 'Find Work' : 'Browse Jobs', icon: Search },
-    { to: '/workers', label: 'Find Workers', icon: User },
+    ...(isClientOrAdmin ? [{ to: '/workers', label: 'Find Workers', icon: User }] : []),
     { to: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   ];
 
@@ -127,11 +129,13 @@ export default function DashboardLayout() {
             <p className="text-xs text-slate-500 capitalize">{user?.role || 'member'} workspace</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/workers')}>
-              Hire
-            </Button>
+            {isClientOrAdmin && (
+              <Button variant="ghost" size="sm" onClick={() => navigate('/workers')}>
+                Hire
+              </Button>
+            )}
             <Button variant="primary" size="sm" onClick={() => navigate('/jobs')}>
-              {user?.role === 'worker' ? 'Find Work' : 'Browse Jobs'}
+              {isWorker ? 'Find Work' : 'Browse Jobs'}
             </Button>
           </div>
         </header>

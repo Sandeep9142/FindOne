@@ -22,6 +22,7 @@ export default function WorkersPage() {
     availableNow: searchParams.get('availableNow') === 'true',
   });
   const user = useAuthStore((state) => state.user);
+  const isWorker = user?.role === 'worker';
 
   async function loadWorkers(currentFilters = filters) {
     setLoading(true);
@@ -44,6 +45,12 @@ export default function WorkersPage() {
   }
 
   useEffect(() => {
+    if (isWorker) {
+      setLoading(false);
+      setWorkers([]);
+      return;
+    }
+
     const queryKey = searchParams.toString();
     if (loadKeyRef.current === queryKey) {
       return;
@@ -83,10 +90,14 @@ export default function WorkersPage() {
     }
 
     bootstrap();
-  }, [searchParams]);
+  }, [isWorker, searchParams]);
 
   function handleSubmit(event) {
     event.preventDefault();
+    if (isWorker) {
+      return;
+    }
+
     const nextSearchParams = new URLSearchParams({
       ...(filters.q ? { q: filters.q } : {}),
       ...(filters.availableNow ? { availableNow: 'true' } : {}),
@@ -104,6 +115,24 @@ export default function WorkersPage() {
     }
 
     setSearchParams(nextSearchParams);
+  }
+
+  if (isWorker) {
+    return (
+      <div className="container-app py-28">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">Workers directory is client-only</h1>
+          <p className="mt-3 text-sm text-slate-500">
+            Worker accounts can browse jobs and manage applications from the jobs page.
+          </p>
+          <Link to="/jobs" className="mt-6 inline-block">
+            <Button variant="primary" size="lg">
+              Go to jobs
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

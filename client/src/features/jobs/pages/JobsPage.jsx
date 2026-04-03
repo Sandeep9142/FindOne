@@ -26,6 +26,8 @@ export default function JobsPage() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const showToast = useUIStore((state) => state.showToast);
+  const isWorker = user?.role === 'worker';
+  const isClientOrAdmin = user?.role === 'client' || user?.role === 'admin';
   const [categories, setCategories] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,14 +43,56 @@ export default function JobsPage() {
     categoryId: '',
     title: '',
     description: '',
+    addressLine: '',
     city: '',
     state: '',
+    pincode: '',
     budgetType: 'fixed',
     budgetMin: '',
     budgetMax: '',
     urgency: 'medium',
+    scheduledDate: '',
     skillsRequired: '',
   });
+
+  function validateJobForm() {
+    if (!jobForm.categoryId) {
+      return 'Please select a category.';
+    }
+
+    if (jobForm.title.trim().length < 3) {
+      return 'Job title must be at least 3 characters.';
+    }
+
+    if (jobForm.description.trim().length < 10) {
+      return 'Job description must be at least 10 characters.';
+    }
+
+    if (!jobForm.city.trim() || !jobForm.state.trim()) {
+      return 'City and state are required.';
+    }
+
+    const budgetMin = Number(jobForm.budgetMin || 0);
+    const budgetMax = Number(jobForm.budgetMax || 0);
+
+    if (Number.isNaN(budgetMin) || Number.isNaN(budgetMax)) {
+      return 'Budget values must be valid numbers.';
+    }
+
+    if (budgetMin < 0 || budgetMax < 0) {
+      return 'Budget values cannot be negative.';
+    }
+
+    if (!budgetMin && !budgetMax) {
+      return 'Please enter at least one budget amount.';
+    }
+
+    if (budgetMin && budgetMax && budgetMax < budgetMin) {
+      return 'Budget maximum must be greater than or equal to budget minimum.';
+    }
+
+    return '';
+  }
 
   async function loadJobs(currentFilters = filters) {
     setLoading(true);
@@ -108,7 +152,7 @@ export default function JobsPage() {
       return;
     }
 
-    if (user?.role !== 'worker') {
+    if (!isWorker) {
       showToast('Only worker accounts can apply to jobs.', 'error');
       return;
     }
@@ -127,25 +171,47 @@ export default function JobsPage() {
 
   async function handleCreateJob(event) {
     event.preventDefault();
+
+    if (!isAuthenticated) {
+      showToast('Please log in as a client to post a job.', 'error');
+      return;
+    }
+
+    if (!isClientOrAdmin) {
+      showToast('Only client accounts can post jobs.', 'error');
+      return;
+    }
+
+    const validationError = validateJobForm();
+    if (validationError) {
+      showToast(validationError, 'error');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
       const createdJob = await jobService.create({
         categoryId: jobForm.categoryId,
-        title: jobForm.title,
-        description: jobForm.description,
+        title: jobForm.title.trim(),
+        description: jobForm.description.trim(),
         skillsRequired: jobForm.skillsRequired
           .split(',')
           .map((skill) => skill.trim())
           .filter(Boolean),
         location: {
-          city: jobForm.city,
-          state: jobForm.state,
+          addressLine: jobForm.addressLine.trim(),
+          city: jobForm.city.trim(),
+          state: jobForm.state.trim(),
+          pincode: jobForm.pincode.trim(),
         },
         budgetType: jobForm.budgetType,
         budgetMin: Number(jobForm.budgetMin || 0),
         budgetMax: Number(jobForm.budgetMax || 0),
         urgency: jobForm.urgency,
+        scheduledDate: jobForm.scheduledDate
+          ? new Date(jobForm.scheduledDate).toISOString()
+          : undefined,
       });
 
       setJobs((current) => [createdJob, ...current]);
@@ -153,10 +219,13 @@ export default function JobsPage() {
         ...current,
         title: '',
         description: '',
+        addressLine: '',
         city: '',
         state: '',
+        pincode: '',
         budgetMin: '',
         budgetMax: '',
+        scheduledDate: '',
         skillsRequired: '',
       }));
       showToast('Job posted successfully');
@@ -171,19 +240,30 @@ export default function JobsPage() {
     <div className="container-app py-28">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-heading-1 text-dark font-bold">Find work and post jobs</h1>
+          <h1 className="text-heading-1 text-dark font-bold">
+            {isWorker
+              ? 'Find work opportunities'
+              : isClientOrAdmin
+                ? 'Post and manage jobs'
+                : 'Find work and post jobs'}
+          </h1>
           <p className="mt-3 text-body-lg text-slate-500 max-w-2xl">
-            Workers can apply to open opportunities here, and clients can post jobs that flow
-            straight into the backend.
+            {isWorker
+              ? 'Apply to open opportunities that match your skills.'
+              : isClientOrAdmin
+                ? 'Create jobs with complete details and hire workers faster.'
+                : 'Workers can apply to open opportunities, and clients can post jobs.'}
           </p>
         </div>
 
         <div className="flex gap-3">
-          <Link to="/workers">
-            <Button variant="ghost" size="lg">
-              Find Workers
-            </Button>
-          </Link>
+          {isClientOrAdmin && (
+            <Link to="/workers">
+              <Button variant="ghost" size="lg">
+                Find Workers
+              </Button>
+            </Link>
+          )}
           {!isAuthenticated && (
             <Link to="/register?role=worker">
               <Button variant="primary" size="lg">
@@ -242,12 +322,12 @@ export default function JobsPage() {
         </div>
       </form>
 
-      {(user?.role === 'client' || user?.role === 'admin') && (
+      {isClientOrAdmin && (
         <section className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-slate-900">Post a new job</h2>
             <p className="mt-1 text-sm text-slate-500">
-              This form is now connected to the backend job creation API.
+              Fill all required details to create a valid job post.
             </p>
           </div>
 
@@ -255,6 +335,7 @@ export default function JobsPage() {
             <input
               type="text"
               required
+              minLength={3}
               placeholder="Job title"
               className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
               value={jobForm.title}
@@ -268,6 +349,7 @@ export default function JobsPage() {
                 setJobForm((current) => ({ ...current, categoryId: event.target.value }))
               }
             >
+              <option value="">Select category</option>
               {categories.map((category) => (
                 <option key={category._id} value={category._id}>
                   {category.name}
@@ -277,11 +359,22 @@ export default function JobsPage() {
 
             <textarea
               required
+              minLength={10}
               placeholder="Describe the job"
               className="min-h-32 rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
               value={jobForm.description}
               onChange={(event) =>
                 setJobForm((current) => ({ ...current, description: event.target.value }))
+              }
+            />
+
+            <input
+              type="text"
+              placeholder="Address line"
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+              value={jobForm.addressLine}
+              onChange={(event) =>
+                setJobForm((current) => ({ ...current, addressLine: event.target.value }))
               }
             />
 
@@ -300,6 +393,16 @@ export default function JobsPage() {
               className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
               value={jobForm.state}
               onChange={(event) => setJobForm((current) => ({ ...current, state: event.target.value }))}
+            />
+
+            <input
+              type="text"
+              placeholder="Pincode"
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+              value={jobForm.pincode}
+              onChange={(event) =>
+                setJobForm((current) => ({ ...current, pincode: event.target.value }))
+              }
             />
 
             <select
@@ -340,6 +443,15 @@ export default function JobsPage() {
               value={jobForm.budgetMax}
               onChange={(event) =>
                 setJobForm((current) => ({ ...current, budgetMax: event.target.value }))
+              }
+            />
+
+            <input
+              type="datetime-local"
+              className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+              value={jobForm.scheduledDate}
+              onChange={(event) =>
+                setJobForm((current) => ({ ...current, scheduledDate: event.target.value }))
               }
             />
 
@@ -425,7 +537,7 @@ export default function JobsPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 lg:w-48">
-                  {user?.role === 'worker' ? (
+                  {isWorker ? (
                     <Button
                       variant="primary"
                       size="lg"
@@ -435,7 +547,7 @@ export default function JobsPage() {
                     >
                       Apply now
                     </Button>
-                  ) : user?.role === 'client' || user?.role === 'admin' ? (
+                  ) : isClientOrAdmin ? (
                     <Link to="/workers">
                       <Button variant="outline" size="lg" className="w-full justify-center">
                         Hire a worker

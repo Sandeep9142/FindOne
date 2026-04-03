@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Briefcase, DollarSign, Star, TrendingUp } from 'lucide-react';
 import Button from '@components/common/Button';
-import { bookingService, jobService, workerService } from '@services';
-import { useAuthStore } from '@store';
+import { bookingService, categoryService, jobService, workerService } from '@services';
+import { useAuthStore, useUIStore } from '@store';
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message || fallback;
+}
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : 'Flexible';
@@ -13,13 +17,37 @@ function formatCurrency(value) {
   return `Rs ${Number(value || 0).toLocaleString()}`;
 }
 
+function buildProfileForm(workerProfile) {
+  return {
+    headline: workerProfile?.headline || '',
+    bio: workerProfile?.bio || '',
+    skills: (workerProfile?.skills || []).join(', '),
+    hourlyRate: String(workerProfile?.hourlyRate ?? ''),
+    experienceYears: String(workerProfile?.experienceYears ?? ''),
+    isAvailableNow: Boolean(workerProfile?.isAvailableNow),
+    categoryIds: (workerProfile?.categories || []).map((category) => category._id),
+  };
+}
+
 export default function WorkerDashboardPage() {
   const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
   const [profile, setProfile] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [applications, setApplications] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    headline: '',
+    bio: '',
+    skills: '',
+    hourlyRate: '',
+    experienceYears: '',
+    isAvailableNow: false,
+    categoryIds: [],
+  });
 
   useEffect(() => {
     if (hasLoadedRef.current) {
@@ -30,22 +58,27 @@ export default function WorkerDashboardPage() {
 
     async function bootstrap() {
       try {
-        const [workerProfile, appliedJobs, bookingList] = await Promise.all([
+        const [workerProfile, categoryList, appliedJobs, bookingList] = await Promise.all([
           workerService.getMyProfile(),
+          categoryService.getAll(),
           jobService.getMyApplied(),
           bookingService.getAll(),
         ]);
 
         setProfile(workerProfile);
+        setCategories(categoryList);
+        setProfileForm(buildProfileForm(workerProfile));
         setApplications(appliedJobs);
         setBookings(bookingList);
+      } catch (error) {
+        showToast(getErrorMessage(error, 'Unable to load dashboard data.'), 'error');
       } finally {
         setLoading(false);
       }
     }
 
     bootstrap();
-  }, []);
+  }, [showToast]);
 
   const stats = [
     {
@@ -77,6 +110,43 @@ export default function WorkerDashboardPage() {
       color: 'text-violet-500 bg-violet-50',
     },
   ];
+
+  function toggleCategory(categoryId) {
+    setProfileForm((current) => ({
+      ...current,
+      categoryIds: current.categoryIds.includes(categoryId)
+        ? current.categoryIds.filter((id) => id !== categoryId)
+        : [...current.categoryIds, categoryId],
+    }));
+  }
+
+  async function handleProfileSubmit(event) {
+    event.preventDefault();
+    setSavingProfile(true);
+
+    try {
+      const updatedProfile = await workerService.updateProfile({
+        headline: profileForm.headline,
+        bio: profileForm.bio,
+        skills: profileForm.skills
+          .split(',')
+          .map((skill) => skill.trim())
+          .filter(Boolean),
+        hourlyRate: Number(profileForm.hourlyRate || 0),
+        experienceYears: Number(profileForm.experienceYears || 0),
+        isAvailableNow: profileForm.isAvailableNow,
+        categories: profileForm.categoryIds,
+      });
+
+      setProfile(updatedProfile);
+      setProfileForm(buildProfileForm(updatedProfile));
+      showToast('Profile updated successfully');
+    } catch (error) {
+      showToast(getErrorMessage(error, 'Unable to update your profile.'), 'error');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -129,6 +199,112 @@ export default function WorkerDashboardPage() {
         ))}
       </div>
 
+      <section className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-slate-900">Edit worker profile</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Update your skills, amount, and service type so clients can find you faster.
+          </p>
+        </div>
+
+        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleProfileSubmit}>
+          <input
+            type="text"
+            placeholder="Headline"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+            value={profileForm.headline}
+            onChange={(event) =>
+              setProfileForm((current) => ({ ...current, headline: event.target.value }))
+            }
+          />
+
+          <textarea
+            placeholder="Bio"
+            className="min-h-24 rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+            value={profileForm.bio}
+            onChange={(event) =>
+              setProfileForm((current) => ({ ...current, bio: event.target.value }))
+            }
+          />
+
+          <input
+            type="text"
+            placeholder="Skills (comma separated)"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+            value={profileForm.skills}
+            onChange={(event) =>
+              setProfileForm((current) => ({ ...current, skills: event.target.value }))
+            }
+          />
+
+          <input
+            type="number"
+            min="0"
+            placeholder="Amount (hourly rate)"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={profileForm.hourlyRate}
+            onChange={(event) =>
+              setProfileForm((current) => ({ ...current, hourlyRate: event.target.value }))
+            }
+          />
+
+          <input
+            type="number"
+            min="0"
+            placeholder="Experience in years"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={profileForm.experienceYears}
+            onChange={(event) =>
+              setProfileForm((current) => ({ ...current, experienceYears: event.target.value }))
+            }
+          />
+
+          <div className="md:col-span-2">
+            <p className="text-sm font-medium text-slate-700">Service type (categories)</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {categories.length > 0 ? (
+                categories.map((category) => {
+                  const selected = profileForm.categoryIds.includes(category._id);
+                  return (
+                    <button
+                      key={category._id}
+                      type="button"
+                      onClick={() => toggleCategory(category._id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        selected
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-slate-500">No categories available yet.</p>
+              )}
+            </div>
+          </div>
+
+          <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={profileForm.isAvailableNow}
+              onChange={(event) =>
+                setProfileForm((current) => ({ ...current, isAvailableNow: event.target.checked }))
+              }
+            />
+            Available now
+          </label>
+
+          <div className="md:col-span-2">
+            <Button type="submit" variant="primary" size="lg" loading={savingProfile}>
+              Save profile
+            </Button>
+          </div>
+        </form>
+      </section>
+
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
@@ -146,7 +322,7 @@ export default function WorkerDashboardPage() {
                     <div>
                       <p className="font-semibold text-slate-900">{application.jobId?.title || 'Job'}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {application.jobId?.categoryId?.name || 'General'} • {application.jobId?.location?.city}, {application.jobId?.location?.state}
+                        {application.jobId?.categoryId?.name || 'General'} - {application.jobId?.location?.city}, {application.jobId?.location?.state}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -183,7 +359,7 @@ export default function WorkerDashboardPage() {
                     <div>
                       <p className="font-semibold text-slate-900">{booking.title}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {booking.clientId?.fullName || 'Client'} • {formatDate(booking.bookingDate)}
+                        {booking.clientId?.fullName || 'Client'} - {formatDate(booking.bookingDate)}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
