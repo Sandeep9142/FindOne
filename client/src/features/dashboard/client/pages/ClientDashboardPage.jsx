@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, CheckCircle, Clock, Users } from 'lucide-react';
+import { Briefcase, CheckCircle, Clock, Star, Users } from 'lucide-react';
 import Button from '@components/common/Button';
+import { Modal } from '@components/ui';
 import { bookingService, jobService } from '@services';
-import { useAuthStore } from '@store';
+import { useAuthStore, useUIStore } from '@store';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : 'Flexible';
@@ -13,12 +14,49 @@ function formatCurrency(value) {
   return `Rs ${Number(value || 0).toLocaleString()}`;
 }
 
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message || fallback;
+}
+
+function StarPicker({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-1">
+      {Array.from({ length: 5 }, (_, index) => {
+        const starValue = index + 1;
+        const active = starValue <= value;
+
+        return (
+          <button
+            key={starValue}
+            type="button"
+            onClick={() => onChange(starValue)}
+            className="rounded-md p-1 transition-colors hover:bg-amber-50"
+            aria-label={`Rate ${starValue} star${starValue > 1 ? 's' : ''}`}
+          >
+            <Star
+              size={20}
+              className={active ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ClientDashboardPage() {
   const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
   const [jobs, setJobs] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    comment: '',
+  });
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     if (hasLoadedRef.current) {
@@ -36,13 +74,15 @@ export default function ClientDashboardPage() {
 
         setJobs(postedJobs);
         setBookings(bookingList);
+      } catch (error) {
+        showToast(getErrorMessage(error, 'Unable to load dashboard data.'), 'error');
       } finally {
         setLoading(false);
       }
     }
 
     bootstrap();
-  }, []);
+  }, [showToast]);
 
   const stats = [
     {
@@ -70,6 +110,54 @@ export default function ClientDashboardPage() {
       color: 'text-violet-500 bg-violet-50',
     },
   ];
+
+  function openReviewModal(booking) {
+    setSelectedBooking(booking);
+    setReviewForm({ rating: 5, comment: '' });
+  }
+
+  function closeReviewModal() {
+    if (submittingReview) {
+      return;
+    }
+
+    setSelectedBooking(null);
+    setReviewForm({ rating: 5, comment: '' });
+  }
+
+  async function handleSubmitReview(event) {
+    event.preventDefault();
+    if (!selectedBooking?._id) {
+      return;
+    }
+
+    setSubmittingReview(true);
+
+    try {
+      const review = await bookingService.createReview(selectedBooking._id, {
+        rating: reviewForm.rating,
+        comment: reviewForm.comment.trim(),
+      });
+
+      setBookings((current) =>
+        current.map((booking) =>
+          booking._id === selectedBooking._id
+            ? {
+                ...booking,
+                review,
+              }
+            : booking
+        )
+      );
+
+      showToast('Review submitted successfully');
+      closeReviewModal();
+    } catch (error) {
+      showToast(getErrorMessage(error, 'Unable to submit review.'), 'error');
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -144,7 +232,7 @@ export default function ClientDashboardPage() {
                     <div>
                       <p className="font-semibold text-slate-900">{job.title}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {job.categoryId?.name || 'General'} • {job.location?.city}, {job.location?.state}
+                        {job.categoryId?.name || 'General'} - {job.location?.city}, {job.location?.state}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -181,16 +269,26 @@ export default function ClientDashboardPage() {
                     <div>
                       <p className="font-semibold text-slate-900">{booking.title}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {booking.workerId?.fullName || 'Worker'} • {formatDate(booking.bookingDate)}
+                        {booking.workerId?.fullName || 'Worker'} - {formatDate(booking.bookingDate)}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
                       {booking.status}
                     </span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-500">
+                  <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-500">
                     <span>{formatCurrency(booking.amount)}</span>
                     <span>{booking.paymentStatus} payment</span>
+                    {booking.review ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
+                        <Star size={13} className="fill-current" />
+                        Rated {booking.review.rating}/5
+                      </span>
+                    ) : booking.status === 'completed' ? (
+                      <Button variant="outline" size="sm" onClick={() => openReviewModal(booking)}>
+                        Rate worker
+                      </Button>
+                    ) : null}
                   </div>
                 </article>
               ))
@@ -202,6 +300,43 @@ export default function ClientDashboardPage() {
           </div>
         </section>
       </div>
+
+      <Modal
+        isOpen={Boolean(selectedBooking)}
+        onClose={closeReviewModal}
+        title={selectedBooking ? `Rate ${selectedBooking.workerId?.fullName || 'worker'}` : 'Add review'}
+      >
+        <form className="space-y-4" onSubmit={handleSubmitReview}>
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">Your rating</p>
+            <StarPicker
+              value={reviewForm.rating}
+              onChange={(rating) => setReviewForm((current) => ({ ...current, rating }))}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">Comment</label>
+            <textarea
+              className="min-h-28 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+              placeholder="Share your experience"
+              value={reviewForm.comment}
+              onChange={(event) =>
+                setReviewForm((current) => ({ ...current, comment: event.target.value }))
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <Button type="button" variant="ghost" size="sm" onClick={closeReviewModal}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" loading={submittingReview}>
+              Submit review
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

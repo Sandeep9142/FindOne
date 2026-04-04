@@ -45,6 +45,37 @@ function populateBooking(query) {
     .populate('categoryId', 'name slug icon');
 }
 
+function toPlainBooking(booking) {
+  if (!booking) {
+    return booking;
+  }
+
+  return booking.toObject ? booking.toObject() : booking;
+}
+
+async function attachBookingReviews(bookings) {
+  if (!Array.isArray(bookings) || bookings.length === 0) {
+    return [];
+  }
+
+  const bookingIds = bookings.map((booking) => booking._id);
+  const reviews = await Review.find({ bookingId: { $in: bookingIds } })
+    .select('bookingId rating comment tags createdAt')
+    .sort({ createdAt: -1 });
+
+  const reviewMap = new Map(
+    reviews.map((review) => [review.bookingId.toString(), review.toObject()])
+  );
+
+  return bookings.map((booking) => {
+    const plainBooking = toPlainBooking(booking);
+    return {
+      ...plainBooking,
+      review: reviewMap.get(plainBooking._id.toString()) || null,
+    };
+  });
+}
+
 function getIdValue(value) {
   if (!value) {
     return '';
@@ -114,7 +145,7 @@ export async function listBookings(requester, query) {
     Booking.find(filters).sort({ bookingDate: -1, createdAt: -1 })
   ).limit(Math.min(Number(query.limit) || 20, 50));
 
-  return bookings;
+  return attachBookingReviews(bookings);
 }
 
 export async function getBookingById(bookingId, requester) {
@@ -128,7 +159,8 @@ export async function getBookingById(bookingId, requester) {
     throw new AppError('You do not have permission to view this booking', 403);
   }
 
-  return booking;
+  const [bookingWithReview] = await attachBookingReviews([booking]);
+  return bookingWithReview;
 }
 
 export async function createBooking(clientId, payload) {

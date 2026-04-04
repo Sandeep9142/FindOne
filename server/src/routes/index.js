@@ -7,6 +7,7 @@ import clientProfileRoutes from './clientProfileRoutes.js';
 import conversationRoutes from './conversationRoutes.js';
 import jobRoutes from './jobRoutes.js';
 import paymentRoutes from './paymentRoutes.js';
+import reviewRoutes from './reviewRoutes.js';
 import userRoutes from './userRoutes.js';
 import workerRoutes from './workerRoutes.js';
 
@@ -26,6 +27,7 @@ router.use('/bookings', bookingRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/conversations', conversationRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/reviews', reviewRoutes);
 router.use('/users', userRoutes);
 router.use('/workers', workerRoutes);
 router.use('/clients', clientProfileRoutes);
