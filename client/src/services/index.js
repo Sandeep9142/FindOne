@@ -5,3 +5,4 @@ export { jobService } from './jobService';
 export { bookingService } from './bookingService';
 export { categoryService } from './categoryService';
 export { messageService } from './messageService';
+export { reviewService } from './reviewService';
