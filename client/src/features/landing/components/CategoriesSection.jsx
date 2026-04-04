@@ -140,6 +140,10 @@ export default function CategoriesSection() {
           <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
             Loading categories...
           </div>
+        ) : categories.length === 0 ? (
+          <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
+            No categories available right now.
+          </div>
         ) : (
           <motion.div
             className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:gap-5"

@@ -12,9 +12,7 @@ function normalizeLimit(limit) {
 export async function listPublicTestimonials(query = {}) {
   const limit = normalizeLimit(query.limit);
 
-  const reviews = await Review.find({
-    comment: { $exists: true, $ne: '' },
-  })
+  const reviews = await Review.find({})
     .populate('clientId', 'fullName avatarUrl role')
     .populate('workerId', 'fullName avatarUrl role')
     .sort({ createdAt: -1 })
@@ -39,7 +37,9 @@ export async function listPublicTestimonials(query = {}) {
     return {
       _id: review._id,
       rating: review.rating,
-      comment: review.comment,
+      comment: review.comment?.trim()
+        ? review.comment
+        : `Rated ${review.rating}/5 for completed service.`,
       createdAt: review.createdAt,
       client: {
         _id: review.clientId?._id,
