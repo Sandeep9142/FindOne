@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Quote } from 'lucide-react';
 import SectionHeader from '@components/common/SectionHeader';
 import StarRating from '@components/common/StarRating';
-import { TESTIMONIALS } from '@data/testimonials';
 import { reviewService } from '@services';
 import { cn } from '@utils/cn';
 
@@ -66,13 +65,7 @@ export default function TestimonialsSection() {
     loadTestimonials();
   }, []);
 
-  const testimonials = useMemo(() => {
-    if (apiTestimonials.length > 0) {
-      return apiTestimonials;
-    }
-
-    return TESTIMONIALS;
-  }, [apiTestimonials]);
+  const testimonials = useMemo(() => apiTestimonials, [apiTestimonials]);
 
   return (
     <section className="section bg-white" id="testimonials">
@@ -89,9 +82,13 @@ export default function TestimonialsSection() {
           </div>
         )}
 
-        {loading && testimonials.length === 0 ? (
+        {loading ? (
           <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
             Loading testimonials...
+          </div>
+        ) : testimonials.length === 0 ? (
+          <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
+            No reviews yet. Complete bookings and submit ratings to show testimonials here.
           </div>
         ) : (
           <motion.div
