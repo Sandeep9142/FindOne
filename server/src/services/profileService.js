@@ -23,6 +23,36 @@ function buildUserProfile(user) {
   return user?.toSafeObject ? user.toSafeObject() : user;
 }
 
+async function updateWorkerRating(workerId) {
+  const stats = await Review.aggregate([
+    { $match: { workerId } },
+    {
+      $group: {
+        _id: '$workerId',
+        ratingAverage: { $avg: '$rating' },
+        ratingCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const ratingAverage = stats[0]?.ratingAverage || 0;
+  const ratingCount = stats[0]?.ratingCount || 0;
+
+  await WorkerProfile.findOneAndUpdate(
+    { userId: workerId },
+    {
+      $set: {
+        ratingAverage: Number(ratingAverage.toFixed(1)),
+        ratingCount,
+      },
+      $setOnInsert: {
+        userId: workerId,
+      },
+    },
+    { upsert: true, runValidators: true }
+  );
+}
+
 async function ensureCategoryIds(categoryIds = []) {
   if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
     return [];
@@ -239,4 +269,52 @@ export async function getWorkerReviews(workerId) {
     .sort({ createdAt: -1 })
     .limit(20);
   return reviews;
+}
+
+export async function createWorkerReview(workerId, requester, payload) {
+  if (requester.role !== 'client' && requester.role !== 'admin') {
+    throw new AppError('Only client accounts can create worker reviews', 403);
+  }
+
+  const workerProfile = await WorkerProfile.findById(workerId).select('userId');
+
+  if (!workerProfile) {
+    throw new AppError('Worker profile not found', 404);
+  }
+
+  if (workerProfile.userId.toString() === requester._id.toString()) {
+    throw new AppError('You cannot review your own profile', 400);
+  }
+
+  const rating = Number(payload.rating);
+  if (!rating || rating < 1 || rating > 5) {
+    throw new AppError('Rating must be between 1 and 5', 400);
+  }
+
+  const existingReview = await Review.findOne({
+    workerId: workerProfile.userId,
+    clientId: requester._id,
+    bookingId: { $exists: false },
+    jobId: { $exists: false },
+  });
+
+  if (existingReview) {
+    throw new AppError('You have already reviewed this worker', 409);
+  }
+
+  const review = await Review.create({
+    clientId: requester._id,
+    workerId: workerProfile.userId,
+    rating,
+    comment: payload.comment ? String(payload.comment).trim() : '',
+    tags: sanitizeStringArray(payload.tags) || [],
+  });
+
+  await updateWorkerRating(workerProfile.userId);
+
+  const populatedReview = await Review.findById(review._id)
+    .populate('clientId', 'fullName avatarUrl role isVerified')
+    .populate('workerId', 'fullName avatarUrl role isVerified');
+
+  return populatedReview;
 }

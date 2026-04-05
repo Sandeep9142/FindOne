@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  addWorkerReview,
   getMyWorker,
   getWorker,
   getWorkerReviewList,
@@ -11,6 +12,8 @@ import {
 } from '../controllers/profileController.js';
 import { authorize, protect } from '../middleware/authMiddleware.js';
 import { avatarUpload, portfolioUpload } from '../middleware/uploadMiddleware.js';
+import { validateRequest } from '../middleware/validateMiddleware.js';
+import { createWorkerReviewSchema } from '../validators/reviewValidators.js';
 
 const router = Router();
 
@@ -21,6 +24,7 @@ router.post('/portfolio', protect, authorize('worker'), portfolioUpload.array('i
 router.get('/', getWorkers);
 router.get('/search', searchWorkers);
 router.get('/:id', getWorker);
+router.post('/:id/reviews', protect, authorize('client', 'admin'), validateRequest(createWorkerReviewSchema), addWorkerReview);
 router.get('/:id/reviews', getWorkerReviewList);
 
 export default router;

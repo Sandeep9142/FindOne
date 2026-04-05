@@ -48,13 +48,4 @@ reviewSchema.index({ workerId: 1, createdAt: -1 });
 reviewSchema.index({ bookingId: 1 }, { unique: true, sparse: true });
 reviewSchema.index({ jobId: 1 }, { unique: true, sparse: true });
 
-reviewSchema.pre('validate', function validateSource(next) {
-  if (!this.bookingId && !this.jobId) {
-    next(new Error('Review must reference either a booking or a job'));
-    return;
-  }
-
-  next();
-});
-
 export default mongoose.models.Review || mongoose.model('Review', reviewSchema);
