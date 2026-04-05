@@ -17,6 +17,10 @@ export const workerService = {
     const response = await api.get(`/workers/${id}/reviews`, { params });
     return response.data;
   },
+  createReview: async (id, data) => {
+    const response = await api.post(`/workers/${id}/reviews`, data);
+    return response.data;
+  },
   getMyProfile: async () => {
     const response = await api.get('/workers/profile/me');
     return response.data;

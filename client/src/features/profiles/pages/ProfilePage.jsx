@@ -31,6 +31,11 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    comment: '',
+  });
   const [bookingForm, setBookingForm] = useState({
     categoryId: '',
     title: '',
@@ -163,6 +168,53 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleReviewSubmit(event) {
+    event.preventDefault();
+
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+
+    if (user?.role !== 'client' && user?.role !== 'admin') {
+      showToast('Only client accounts can submit reviews.', 'error');
+      return;
+    }
+
+    setReviewSubmitting(true);
+
+    try {
+      const review = await workerService.createReview(id, {
+        rating: reviewForm.rating,
+        comment: reviewForm.comment.trim(),
+      });
+
+      setReviews((current) => [review, ...current]);
+      setReviewForm({ rating: 5, comment: '' });
+      setWorker((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const currentCount = Number(current.ratingCount || 0);
+        const currentAverage = Number(current.ratingAverage || 0);
+        const nextCount = currentCount + 1;
+        const nextAverage = ((currentAverage * currentCount) + Number(review.rating || 0)) / nextCount;
+
+        return {
+          ...current,
+          ratingCount: nextCount,
+          ratingAverage: Number(nextAverage.toFixed(1)),
+        };
+      });
+      showToast('Review submitted successfully');
+    } catch (submitError) {
+      showToast(getErrorMessage(submitError, 'Unable to submit review.'), 'error');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="container-app py-28">
@@ -186,6 +238,17 @@ export default function ProfilePage() {
   const displayName = worker.userId?.fullName || 'Worker';
   const workerUserId = worker.userId?._id;
   const isOwnProfile = user?._id && workerUserId && user._id === workerUserId;
+  const hasUserReview = Boolean(
+    user?._id &&
+    reviews.some(
+      (review) => String(review.clientId?._id || review.clientId || '') === String(user._id)
+    )
+  );
+  const canLeaveReview =
+    isAuthenticated &&
+    !isOwnProfile &&
+    (user?.role === 'client' || user?.role === 'admin') &&
+    !hasUserReview;
 
   return (
     <div className="container-app py-28">
@@ -332,6 +395,52 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold text-slate-900">Recent reviews</h2>
               <span className="text-sm text-slate-500">{reviews.length} loaded</span>
             </div>
+
+            {canLeaveReview && (
+              <form className="mt-4 rounded-2xl border border-slate-200 bg-white p-4" onSubmit={handleReviewSubmit}>
+                <p className="text-sm font-semibold text-slate-900">Rate this worker</p>
+                <div className="mt-3 flex items-center gap-2">
+                  {Array.from({ length: 5 }, (_, index) => {
+                    const value = index + 1;
+                    const isActive = value <= reviewForm.rating;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setReviewForm((current) => ({ ...current, rating: value }))}
+                        className="rounded-md p-1 transition-colors hover:bg-amber-50"
+                        aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
+                      >
+                        <Star
+                          size={18}
+                          className={isActive ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                  placeholder="Share your experience with this worker"
+                  value={reviewForm.comment}
+                  onChange={(event) =>
+                    setReviewForm((current) => ({ ...current, comment: event.target.value }))
+                  }
+                />
+                <Button type="submit" variant="primary" size="sm" loading={reviewSubmitting}>
+                  Submit review
+                </Button>
+              </form>
+            )}
+
+            {isAuthenticated &&
+              !isOwnProfile &&
+              (user?.role === 'client' || user?.role === 'admin') &&
+              hasUserReview && (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  You have already reviewed this worker.
+                </div>
+              )}
 
             <div className="mt-4 space-y-4">
               {reviews.length > 0 ? (

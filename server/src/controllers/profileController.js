@@ -3,6 +3,7 @@ import { sendSuccess } from '../utils/apiResponse.js';
 import AppError from '../utils/AppError.js';
 import {
   addWorkerPortfolioImages,
+  createWorkerReview,
   getMyClientProfile,
   getMyUserProfile,
   getMyWorkerProfile,
@@ -130,5 +131,15 @@ export const getWorkerReviewList = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Worker reviews fetched successfully',
     data: reviews,
+  });
+});
+
+export const addWorkerReview = asyncHandler(async (req, res) => {
+  const review = await createWorkerReview(req.params.id, req.user, req.body);
+
+  return sendSuccess(res, {
+    statusCode: 201,
+    message: 'Worker review created successfully',
+    data: review,
   });
 });
