@@ -11,7 +11,7 @@ function getErrorMessage(error, fallback) {
 
 export default function WorkersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const loadKeyRef = useRef('');
+  const loadKeyRef = useRef(null);
   const [categories, setCategories] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);

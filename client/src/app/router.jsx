@@ -11,6 +11,7 @@ import HomePage from "@features/landing/pages/HomePage";
 const LoginPage = lazy(() => import("@features/auth/pages/LoginPage"));
 const RegisterPage = lazy(() => import("@features/auth/pages/RegisterPage"));
 const WorkerDashboardPage = lazy(() => import("@features/dashboard/worker/pages/WorkerDashboardPage"));
+const WorkerProfilePage = lazy(() => import("@features/dashboard/worker/pages/WorkerProfilePage"));
 const ClientDashboardPage = lazy(() => import("@features/dashboard/client/pages/ClientDashboardPage"));
 const AdminDashboardPage = lazy(() => import("@features/dashboard/admin/pages/AdminDashboardPage"));
 const JobsPage = lazy(() => import("@features/jobs/pages/JobsPage"));
@@ -97,10 +98,26 @@ export default function AppRouter() {
             }
           />
           <Route
+            path="worker/profile"
+            element={
+              <ProtectedRoute allowedRoles={["worker"]}>
+                <WorkerProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="client"
             element={
               <ProtectedRoute allowedRoles={["client", "admin"]}>
                 <ClientDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="workers"
+            element={
+              <ProtectedRoute allowedRoles={["client", "admin"]}>
+                <WorkersPage />
               </ProtectedRoute>
             }
           />

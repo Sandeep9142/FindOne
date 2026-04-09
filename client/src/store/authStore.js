@@ -15,6 +15,14 @@ export const useAuthStore = create((set) => ({
     set({ user, token, isAuthenticated: true });
   },
 
+  updateUser: (userOrUpdater) =>
+    set((state) => {
+      const nextUser =
+        typeof userOrUpdater === "function" ? userOrUpdater(state.user) : { ...(state.user || {}), ...userOrUpdater };
+      storage.setUser(nextUser);
+      return { user: nextUser };
+    }),
+
   initializeAuth: async () => {
     const token = storage.getToken();
 

@@ -180,7 +180,7 @@ export default function ClientDashboardPage() {
         </div>
 
         <div className="flex gap-3">
-          <Link to="/workers">
+          <Link to="/dashboard/workers">
             <Button variant="ghost" size="lg">
               Find workers
             </Button>

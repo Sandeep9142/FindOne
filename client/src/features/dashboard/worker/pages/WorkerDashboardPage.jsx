@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, DollarSign, Star, TrendingUp } from 'lucide-react';
+import { Briefcase, DollarSign, Star, TrendingUp, Wifi, WifiOff } from 'lucide-react';
 import Button from '@components/common/Button';
-import { bookingService, categoryService, jobService, workerService } from '@services';
+import { bookingService, jobService, workerService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
 
 function getErrorMessage(error, fallback) {
@@ -17,37 +17,15 @@ function formatCurrency(value) {
   return `Rs ${Number(value || 0).toLocaleString()}`;
 }
 
-function buildProfileForm(workerProfile) {
-  return {
-    headline: workerProfile?.headline || '',
-    bio: workerProfile?.bio || '',
-    skills: (workerProfile?.skills || []).join(', '),
-    hourlyRate: String(workerProfile?.hourlyRate ?? ''),
-    experienceYears: String(workerProfile?.experienceYears ?? ''),
-    isAvailableNow: Boolean(workerProfile?.isAvailableNow),
-    categoryIds: (workerProfile?.categories || []).map((category) => category._id),
-  };
-}
-
 export default function WorkerDashboardPage() {
   const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const [profile, setProfile] = useState(null);
-  const [categories, setCategories] = useState([]);
   const [applications, setApplications] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({
-    headline: '',
-    bio: '',
-    skills: '',
-    hourlyRate: '',
-    experienceYears: '',
-    isAvailableNow: false,
-    categoryIds: [],
-  });
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   useEffect(() => {
     if (hasLoadedRef.current) {
@@ -58,16 +36,13 @@ export default function WorkerDashboardPage() {
 
     async function bootstrap() {
       try {
-        const [workerProfile, categoryList, appliedJobs, bookingList] = await Promise.all([
+        const [workerProfile, appliedJobs, bookingList] = await Promise.all([
           workerService.getMyProfile(),
-          categoryService.getAll(),
           jobService.getMyApplied(),
           bookingService.getAll(),
         ]);
 
         setProfile(workerProfile);
-        setCategories(categoryList);
-        setProfileForm(buildProfileForm(workerProfile));
         setApplications(appliedJobs);
         setBookings(bookingList);
       } catch (error) {
@@ -111,40 +86,22 @@ export default function WorkerDashboardPage() {
     },
   ];
 
-  function toggleCategory(categoryId) {
-    setProfileForm((current) => ({
-      ...current,
-      categoryIds: current.categoryIds.includes(categoryId)
-        ? current.categoryIds.filter((id) => id !== categoryId)
-        : [...current.categoryIds, categoryId],
-    }));
-  }
+  async function handleToggleStatus() {
+    if (!profile || togglingStatus) {
+      return;
+    }
 
-  async function handleProfileSubmit(event) {
-    event.preventDefault();
-    setSavingProfile(true);
-
+    setTogglingStatus(true);
     try {
       const updatedProfile = await workerService.updateProfile({
-        headline: profileForm.headline,
-        bio: profileForm.bio,
-        skills: profileForm.skills
-          .split(',')
-          .map((skill) => skill.trim())
-          .filter(Boolean),
-        hourlyRate: Number(profileForm.hourlyRate || 0),
-        experienceYears: Number(profileForm.experienceYears || 0),
-        isAvailableNow: profileForm.isAvailableNow,
-        categories: profileForm.categoryIds,
+        isAvailableNow: !profile.isAvailableNow,
       });
-
       setProfile(updatedProfile);
-      setProfileForm(buildProfileForm(updatedProfile));
-      showToast('Profile updated successfully');
+      showToast(updatedProfile.isAvailableNow ? 'You are now online' : 'You are now offline');
     } catch (error) {
-      showToast(getErrorMessage(error, 'Unable to update your profile.'), 'error');
+      showToast(getErrorMessage(error, 'Unable to update your status.'), 'error');
     } finally {
-      setSavingProfile(false);
+      setTogglingStatus(false);
     }
   }
 
@@ -163,8 +120,8 @@ export default function WorkerDashboardPage() {
           <h2 className="text-2xl font-bold text-dark">
             Welcome back, {user?.fullName?.split(' ')[0] || 'Worker'}
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Track applications, bookings, and your profile performance
+          <p className="mt-1 text-sm text-slate-500">
+            Track applications, bookings, earnings, and your availability.
           </p>
         </div>
 
@@ -182,14 +139,49 @@ export default function WorkerDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <section className="mb-8 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Online Status</h3>
+            <p className="mt-1 text-sm text-slate-500">Set your live availability for client requests.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                profile?.isAvailableNow ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {profile?.isAvailableNow ? <Wifi size={14} /> : <WifiOff size={14} />}
+              {profile?.isAvailableNow ? 'Online' : 'Offline'}
+            </span>
+            <button
+              type="button"
+              aria-label="Toggle online status"
+              aria-pressed={Boolean(profile?.isAvailableNow)}
+              disabled={togglingStatus}
+              onClick={handleToggleStatus}
+              className={`relative h-7 w-12 rounded-full transition-colors ${
+                profile?.isAvailableNow ? 'bg-emerald-500' : 'bg-slate-300'
+              } disabled:opacity-60`}
+            >
+              <span
+                className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  profile?.isAvailableNow ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon, color }) => (
           <div
             key={label}
-            className="bg-white rounded-xl border border-slate-100 p-5 hover:shadow-md transition-shadow"
+            className="rounded-xl border border-slate-100 bg-white p-5 transition-shadow hover:shadow-md"
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
+            <div className="mb-3 flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
                 <Icon size={18} />
               </div>
               <span className="text-sm font-medium text-slate-500">{label}</span>
@@ -198,112 +190,6 @@ export default function WorkerDashboardPage() {
           </div>
         ))}
       </div>
-
-      <section className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-slate-900">Edit worker profile</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Update your skills, amount, and service type so clients can find you faster.
-          </p>
-        </div>
-
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleProfileSubmit}>
-          <input
-            type="text"
-            placeholder="Headline"
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
-            value={profileForm.headline}
-            onChange={(event) =>
-              setProfileForm((current) => ({ ...current, headline: event.target.value }))
-            }
-          />
-
-          <textarea
-            placeholder="Bio"
-            className="min-h-24 rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
-            value={profileForm.bio}
-            onChange={(event) =>
-              setProfileForm((current) => ({ ...current, bio: event.target.value }))
-            }
-          />
-
-          <input
-            type="text"
-            placeholder="Skills (comma separated)"
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
-            value={profileForm.skills}
-            onChange={(event) =>
-              setProfileForm((current) => ({ ...current, skills: event.target.value }))
-            }
-          />
-
-          <input
-            type="number"
-            min="0"
-            placeholder="Amount (hourly rate)"
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
-            value={profileForm.hourlyRate}
-            onChange={(event) =>
-              setProfileForm((current) => ({ ...current, hourlyRate: event.target.value }))
-            }
-          />
-
-          <input
-            type="number"
-            min="0"
-            placeholder="Experience in years"
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
-            value={profileForm.experienceYears}
-            onChange={(event) =>
-              setProfileForm((current) => ({ ...current, experienceYears: event.target.value }))
-            }
-          />
-
-          <div className="md:col-span-2">
-            <p className="text-sm font-medium text-slate-700">Service type (categories)</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {categories.length > 0 ? (
-                categories.map((category) => {
-                  const selected = profileForm.categoryIds.includes(category._id);
-                  return (
-                    <button
-                      key={category._id}
-                      type="button"
-                      onClick={() => toggleCategory(category._id)}
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        selected
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-slate-200 bg-white text-slate-600'
-                      }`}
-                    >
-                      {category.name}
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-slate-500">No categories available yet.</p>
-              )}
-            </div>
-          </div>
-
-          <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={profileForm.isAvailableNow}
-              onChange={(event) =>
-                setProfileForm((current) => ({ ...current, isAvailableNow: event.target.checked }))
-              }
-            />
-            Available now
-          </label>
-
-          <div className="md:col-span-2">
-            <Button type="submit" variant="primary" size="lg" loading={savingProfile}>
-              Save profile
-            </Button>
-          </div>
-        </form>
-      </section>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -322,7 +208,8 @@ export default function WorkerDashboardPage() {
                     <div>
                       <p className="font-semibold text-slate-900">{application.jobId?.title || 'Job'}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {application.jobId?.categoryId?.name || 'General'} - {application.jobId?.location?.city}, {application.jobId?.location?.state}
+                        {application.jobId?.categoryId?.name || 'General'} - {application.jobId?.location?.city},{' '}
+                        {application.jobId?.location?.state}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">

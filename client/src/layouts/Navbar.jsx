@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, User } from 'lucide-react';
 import Logo from '@components/common/Logo';
 import Button from '@components/common/Button';
 import { NAV_LINKS } from '@data/navigation';
-import { useAuthStore, useUIStore } from '@store';
-import { getDashboardPath } from '@utils';
+import { useAuthStore } from '@store';
+import { getDashboardPath, getProfilePath } from '@utils';
+
+function getFirstName(fullName, fallback = 'User') {
+  const firstName = String(fullName || '').trim().split(/\s+/)[0];
+  return firstName || fallback;
+}
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -15,8 +20,6 @@ export default function Navbar() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const logout = useAuthStore((state) => state.logout);
-  const showToast = useUIStore((state) => state.showToast);
   const isHomePage = location.pathname === '/';
 
   useEffect(() => {
@@ -76,14 +79,17 @@ export default function Navbar() {
     setMobileOpen(false);
   }, [isHomePage, navigate]);
 
-  async function handleLogout() {
-    await logout();
+  const handleLogoClick = useCallback((event) => {
     setMobileOpen(false);
-    showToast('Logged out successfully');
-    navigate('/login');
-  }
+
+    if (location.pathname === '/' && !location.hash) {
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [location.hash, location.pathname]);
 
   const dashboardPath = getDashboardPath(user?.role);
+  const profilePath = getProfilePath(user?.role);
   const primaryAction = isAuthenticated
     ? {
         label: user?.role === 'worker' ? 'Find Work' : 'Hire a Worker',
@@ -96,6 +102,7 @@ export default function Navbar() {
   const secondaryAction = isAuthenticated
     ? { label: 'Dashboard', to: dashboardPath }
     : { label: 'Log In', to: '/login' };
+  const profileName = getFirstName(user?.fullName, 'User');
 
   return (
     <nav
@@ -108,7 +115,7 @@ export default function Navbar() {
       `}
     >
       <div className="container-app flex items-center justify-between h-[72px]">
-        <Link to="/" className="relative z-10">
+        <Link to="/" className="relative z-10" onClick={handleLogoClick}>
           <Logo variant={scrolled ? 'dark' : 'white'} />
         </Link>
 
@@ -154,13 +161,37 @@ export default function Navbar() {
             </Button>
           </Link>
           {isAuthenticated && (
-            <Button
-              variant={scrolled ? 'ghost' : 'ghost-white'}
-              size="sm"
-              onClick={handleLogout}
+            <Link
+              to={profilePath}
+              className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 border transition-colors ${
+                scrolled
+                  ? 'border-slate-200 bg-white hover:bg-slate-50'
+                  : 'border-white/20 bg-white/10 hover:bg-white/20'
+              }`}
             >
-              Logout
-            </Button>
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={profileName}
+                  className="h-7 w-7 rounded-full object-cover"
+                />
+              ) : (
+                <span
+                  className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                    scrolled ? 'bg-primary-100 text-primary-700' : 'bg-white/20 text-white'
+                  }`}
+                >
+                  <User size={14} />
+                </span>
+              )}
+              <span
+                className={`max-w-[100px] truncate text-sm font-semibold ${
+                  scrolled ? 'text-slate-900' : 'text-white'
+                }`}
+              >
+                {profileName}
+              </span>
+            </Link>
           )}
         </div>
 
@@ -198,7 +229,9 @@ export default function Navbar() {
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between p-5 border-b border-slate-100">
-            <Logo variant="dark" size="sm" />
+            <Link to="/" onClick={handleLogoClick} className="inline-flex">
+              <Logo variant="dark" size="sm" />
+            </Link>
             <button
               className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
               onClick={() => setMobileOpen(false)}
@@ -210,10 +243,23 @@ export default function Navbar() {
 
           <div className="flex-1 overflow-y-auto p-4">
             {isAuthenticated && (
-              <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">{user?.fullName}</p>
-                <p className="text-xs text-slate-500 capitalize">{user?.role} account</p>
-              </div>
+              <Link
+                to={profilePath}
+                onClick={() => setMobileOpen(false)}
+                className="mb-4 flex items-center gap-3 rounded-2xl border border-slate-100 px-4 py-3 hover:bg-slate-50"
+              >
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={profileName} className="h-10 w-10 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-700">
+                    <User size={18} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-semibold text-slate-900">{profileName}</span>
+                </span>
+                <ArrowRight size={18} className="text-slate-400" />
+              </Link>
             )}
 
             <div className="flex flex-col gap-1">
@@ -252,16 +298,6 @@ export default function Navbar() {
                 <ArrowRight size={16} />
               </Button>
             </Link>
-            {isAuthenticated && (
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full justify-center"
-                onClick={handleLogout}
-              >
-                Logout
-              </Button>
-            )}
           </div>
         </div>
       </div>
