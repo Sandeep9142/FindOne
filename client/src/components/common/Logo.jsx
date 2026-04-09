@@ -1,9 +1,9 @@
 import { cn } from '@utils/cn';
 
 const sizeMap = {
-  sm: { text: 'text-xl', icon: 'w-6 h-6 text-[10px]' },
-  md: { text: 'text-2xl', icon: 'w-7 h-7 text-[11px]' },
-  lg: { text: 'text-3xl', icon: 'w-8 h-8 text-xs' },
+  sm: { text: 'text-lg', icon: 'h-7 w-7' },
+  md: { text: 'text-xl', icon: 'h-9 w-9' },
+  lg: { text: 'text-2xl', icon: 'h-12 w-12' },
 };
 
 export default function Logo({ variant = 'dark', size = 'md', className }) {
@@ -19,17 +19,11 @@ export default function Logo({ variant = 'dark', size = 'md', className }) {
         className
       )}
     >
-      <span
-        className={cn(
-          'rounded-lg font-black flex items-center justify-center flex-shrink-0',
-          icon,
-          isWhite
-            ? 'bg-white/15 text-white'
-            : 'bg-gradient-primary text-white'
-        )}
-      >
-        F
-      </span>
+      <img
+        src="/findone-logo.jpeg"
+        alt="FindOne"
+        className={cn('rounded-xl object-cover flex-shrink-0', icon)}
+      />
       FindOne
     </span>
   );

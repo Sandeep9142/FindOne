@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Briefcase,
@@ -15,14 +15,21 @@ import Button from '@components/common/Button';
 import { useAuthStore, useUIStore } from '@store';
 import { getDashboardPath } from '@utils';
 
+function getFirstName(fullName, fallback = 'FindOne User') {
+  const firstName = String(fullName || '').trim().split(/\s+/)[0];
+  return firstName || fallback;
+}
+
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const showToast = useUIStore((state) => state.showToast);
   const isWorker = user?.role === 'worker';
   const isClientOrAdmin = user?.role === 'client' || user?.role === 'admin';
+  const profileName = getFirstName(user?.fullName, 'FindOne User');
 
   const primaryDashboardLink = {
     to: getDashboardPath(user?.role),
@@ -32,8 +39,9 @@ export default function DashboardLayout() {
 
   const sidebarLinks = [
     primaryDashboardLink,
+    ...(isWorker ? [{ to: '/dashboard/worker/profile', label: 'Profile', icon: User }] : []),
     { to: '/jobs', label: user?.role === 'worker' ? 'Find Work' : 'Browse Jobs', icon: Search },
-    ...(isClientOrAdmin ? [{ to: '/workers', label: 'Find Workers', icon: User }] : []),
+    ...(isClientOrAdmin ? [{ to: '/dashboard/workers', label: 'Find Workers', icon: User }] : []),
     { to: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   ];
 
@@ -41,6 +49,15 @@ export default function DashboardLayout() {
     await logout();
     showToast('Logged out successfully');
     navigate('/login');
+  }
+
+  function handleLogoClick() {
+    if (location.pathname === '/' && !location.hash) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    navigate('/');
   }
 
   return (
@@ -54,7 +71,7 @@ export default function DashboardLayout() {
         `}
       >
         <div className="flex items-center justify-between h-16 px-6 border-b border-slate-100">
-          <button type="button" onClick={() => navigate(getDashboardPath(user?.role))}>
+          <button type="button" onClick={handleLogoClick}>
             <Logo size="sm" />
           </button>
           <button
@@ -92,7 +109,7 @@ export default function DashboardLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
-                {user?.fullName || 'FindOne User'}
+                {profileName}
               </p>
               <p className="text-xs text-slate-500 truncate">
                 {user?.email || 'No email available'}
@@ -130,7 +147,7 @@ export default function DashboardLayout() {
           </div>
           <div className="ml-auto flex items-center gap-3">
             {isClientOrAdmin && (
-              <Button variant="ghost" size="sm" onClick={() => navigate('/workers')}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/workers')}>
                 Hire
               </Button>
             )}

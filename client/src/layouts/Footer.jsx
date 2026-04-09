@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Logo from '@components/common/Logo';
 import { FOOTER_LINKS, SOCIAL_LINKS } from '@data/navigation';
@@ -7,7 +7,15 @@ import { useUIStore } from '@store';
 
 export default function Footer() {
   const [email, setEmail] = useState('');
+  const location = useLocation();
   const showToast = useUIStore((state) => state.showToast);
+
+  function handleLogoClick(event) {
+    if (location.pathname === '/' && !location.hash) {
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
 
   function handleSubscribe(event) {
     event.preventDefault();
@@ -53,7 +61,9 @@ export default function Footer() {
       <div className="container-app py-16">
         <div className="grid grid-cols-2 gap-10 md:grid-cols-3 lg:grid-cols-5">
           <div className="col-span-2 md:col-span-3 lg:col-span-1">
-            <Logo variant="white" />
+            <Link to="/" className="inline-flex" onClick={handleLogoClick}>
+              <Logo variant="white" />
+            </Link>
             <p className="mt-4 max-w-[260px] text-sm leading-relaxed">
               Find skilled professionals instantly. AI-powered matching connecting you with
               verified workers.

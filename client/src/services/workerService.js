@@ -29,6 +29,10 @@ export const workerService = {
     const response = await api.put('/workers/profile', data);
     return response.data;
   },
+  updateAccountInfo: async (data) => {
+    const response = await api.put('/users/me', data);
+    return response.data;
+  },
   uploadAvatar: async (formData) => {
     const response = await api.post('/workers/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
