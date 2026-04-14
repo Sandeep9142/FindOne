@@ -22,6 +22,7 @@ export const FOOTER_LINKS = [
     links: [
       { label: 'Find Workers', href: '/workers' },
       { label: 'Find Work', href: '/jobs' },
+      { label: 'Community', href: '/community' },
       { label: 'Join as Client', href: '/register?role=client' },
       { label: 'Join as Worker', href: '/register?role=worker' },
     ],

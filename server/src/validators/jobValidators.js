@@ -77,10 +77,20 @@ export const applyToJobSchema = z.object({
   body: z.object({
     coverMessage: z.string().trim().max(2000).optional(),
     proposedRate: z.coerce.number().min(0).optional(),
-    status: z.enum(APPLICATION_STATUSES).optional(),
   }),
   params: z.object({
     id: objectIdSchema,
+  }),
+  query: emptyQuerySchema,
+});
+
+export const updateApplicationStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(APPLICATION_STATUSES),
+    note: z.string().trim().max(500).optional(),
+  }),
+  params: z.object({
+    applicationId: objectIdSchema,
   }),
   query: emptyQuerySchema,
 });

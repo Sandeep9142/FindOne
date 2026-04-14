@@ -1,6 +1,25 @@
-import { APPLICATION_STATUSES, JOB_STATUSES } from '../config/constants.js';
-import { Category, Job, JobApplication } from '../models/index.js';
+import {
+  APPLICATION_STATUSES,
+  APPLICATION_TERMINAL_STATUSES,
+  APPLICATION_WORKFLOW_STATUSES,
+} from '../config/constants.js';
+import { Category, Job, JobApplication, WorkerProfile } from '../models/index.js';
 import AppError from '../utils/AppError.js';
+
+const LEGACY_TO_WORKFLOW_STATUS = {
+  pending: 'applied',
+  shortlisted: 'verification',
+  accepted: 'accepted_by_client',
+};
+
+const ACTIVE_APPLICATION_STATUSES = [
+  'accepted_by_client',
+  'work_started',
+  'work_completed',
+  'payment',
+  'review',
+  'accepted',
+];
 
 function sanitizeStringArray(value) {
   if (!Array.isArray(value)) {
@@ -97,6 +116,200 @@ function baseJobPopulation(query) {
     .populate('clientId', 'fullName email avatarUrl role isVerified')
     .populate('categoryId', 'name slug icon')
     .populate('assignedWorkerId', 'fullName email avatarUrl role isVerified');
+}
+
+function applicationWithJobPopulation(query) {
+  return query
+    .populate('workerId', 'fullName email avatarUrl role isVerified')
+    .populate({
+      path: 'jobId',
+      populate: [
+        { path: 'clientId', select: 'fullName email avatarUrl role isVerified' },
+        { path: 'categoryId', select: 'name slug icon' },
+        { path: 'assignedWorkerId', select: 'fullName email avatarUrl role isVerified' },
+      ],
+    });
+}
+
+function normalizeApplicationStatus(status) {
+  return LEGACY_TO_WORKFLOW_STATUS[status] || status;
+}
+
+function getEntityId(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'object' && value._id) {
+    return value._id.toString();
+  }
+
+  return value.toString();
+}
+
+function getNextWorkflowStatus(status) {
+  const currentIndex = APPLICATION_WORKFLOW_STATUSES.indexOf(status);
+  if (currentIndex === -1 || currentIndex === APPLICATION_WORKFLOW_STATUSES.length - 1) {
+    return null;
+  }
+
+  return APPLICATION_WORKFLOW_STATUSES[currentIndex + 1];
+}
+
+function appendApplicationStatusHistory(application, { status, requester, note }) {
+  application.statusHistory.push({
+    status,
+    changedBy: requester._id,
+    changedByRole: requester.role,
+    changedAt: new Date(),
+    note: note || '',
+  });
+}
+
+function getApplicationAccess(application, requester) {
+  const requesterId = requester._id.toString();
+  const workerId = application.workerId.toString();
+  const clientId = application.jobId?.clientId?.toString?.() || '';
+
+  return {
+    isAdmin: requester.role === 'admin',
+    isWorkerOwner: workerId === requesterId,
+    isClientOwner: clientId === requesterId,
+  };
+}
+
+function validateTerminalTransition({ currentStatus, nextStatus, isAdmin }) {
+  if (isAdmin) {
+    return;
+  }
+
+  const allowedCurrentByTarget = {
+    withdrawn: ['applied', 'verification', 'accepted_by_client'],
+    rejected: ['applied', 'verification'],
+    cancelled: ['accepted_by_client', 'work_started'],
+  };
+
+  const allowedCurrent = allowedCurrentByTarget[nextStatus] || [];
+  if (!allowedCurrent.includes(currentStatus)) {
+    throw new AppError(`Cannot move application from ${currentStatus} to ${nextStatus}`, 400);
+  }
+}
+
+function validateTargetByRequesterRole({ nextStatus, isAdmin, isWorkerOwner, isClientOwner }) {
+  if (isAdmin) {
+    return;
+  }
+
+  if (isWorkerOwner) {
+    const workerAllowedTargets = ['work_started', 'withdrawn'];
+    if (!workerAllowedTargets.includes(nextStatus)) {
+      throw new AppError('Workers cannot set this status', 403);
+    }
+    return;
+  }
+
+  if (isClientOwner) {
+    const clientAllowedTargets = [
+      'verification',
+      'accepted_by_client',
+      'work_completed',
+      'payment',
+      'cancelled',
+      'rejected',
+      'review',
+    ];
+    if (!clientAllowedTargets.includes(nextStatus)) {
+      throw new AppError('Clients cannot set this status', 403);
+    }
+    return;
+  }
+
+  throw new AppError('You do not have permission to update this application', 403);
+}
+
+async function ensureNoCompetingAcceptedApplication(application) {
+  const competingAccepted = await JobApplication.findOne({
+    jobId: application.jobId._id,
+    _id: { $ne: application._id },
+    status: { $in: ACTIVE_APPLICATION_STATUSES },
+  }).select('_id');
+
+  if (competingAccepted) {
+    throw new AppError('Another worker is already active on this job', 409);
+  }
+}
+
+async function syncJobFromApplicationStatus(application, status) {
+  const job = await Job.findById(application.jobId._id);
+
+  if (!job) {
+    return;
+  }
+
+  if (status === 'accepted_by_client') {
+    job.assignedWorkerId = application.workerId;
+    job.status = 'assigned';
+    await job.save();
+    return;
+  }
+
+  if (status === 'work_started') {
+    job.assignedWorkerId = application.workerId;
+    job.status = 'in_progress';
+    await job.save();
+    return;
+  }
+
+  if (status === 'work_completed') {
+    job.assignedWorkerId = application.workerId;
+    job.status = 'completed';
+    await job.save();
+    return;
+  }
+
+  if (status === 'cancelled') {
+    if (job.assignedWorkerId?.toString() === application.workerId.toString()) {
+      job.assignedWorkerId = null;
+      if (job.status !== 'completed') {
+        job.status = 'open';
+      }
+      await job.save();
+    }
+  }
+}
+
+async function attachWorkerProfileIds(applications) {
+  if (!Array.isArray(applications) || applications.length === 0) {
+    return [];
+  }
+
+  const workerUserIds = [...new Set(applications.map((application) => getEntityId(application.workerId)).filter(Boolean))];
+
+  if (workerUserIds.length === 0) {
+    return applications.map((application) => (application.toObject ? application.toObject() : application));
+  }
+
+  const profiles = await WorkerProfile.find({ userId: { $in: workerUserIds } }).select('_id userId').lean();
+  const profileIdByUserId = new Map(profiles.map((profile) => [profile.userId.toString(), profile._id.toString()]));
+
+  return applications.map((application) => {
+    const plainApplication = application.toObject ? application.toObject() : application;
+    const workerUserId = getEntityId(plainApplication.workerId);
+
+    return {
+      ...plainApplication,
+      workerProfileId: profileIdByUserId.get(workerUserId) || '',
+    };
+  });
+}
+
+async function attachWorkerProfileId(application) {
+  if (!application) {
+    return application;
+  }
+
+  const [applicationWithProfile] = await attachWorkerProfileIds([application]);
+  return applicationWithProfile || application;
 }
 
 export async function listJobs(query) {
@@ -211,6 +424,15 @@ export async function applyToJob(jobId, workerId, payload) {
     workerId,
     coverMessage: payload.coverMessage ? String(payload.coverMessage).trim() : '',
     proposedRate: payload.proposedRate !== undefined ? Number(payload.proposedRate) : 0,
+    status: 'applied',
+    statusHistory: [
+      {
+        status: 'applied',
+        changedBy: workerId,
+        changedByRole: 'worker',
+        changedAt: new Date(),
+      },
+    ],
   });
 
   job.applicationCount += 1;
@@ -233,11 +455,9 @@ export async function getJobApplications(jobId, requester) {
     throw new AppError('You do not have permission to view these applications', 403);
   }
 
-  const applications = await JobApplication.find({ jobId })
-    .populate('workerId', 'fullName email avatarUrl role isVerified')
-    .sort({ createdAt: -1 });
+  const applications = await applicationWithJobPopulation(JobApplication.find({ jobId }).sort({ createdAt: -1 }));
 
-  return applications;
+  return attachWorkerProfileIds(applications);
 }
 
 export async function listMyPostedJobs(clientId) {
@@ -245,14 +465,75 @@ export async function listMyPostedJobs(clientId) {
 }
 
 export async function listMyAppliedJobs(workerId) {
-  return JobApplication.find({ workerId })
-    .populate({
-      path: 'jobId',
-      populate: [
-        { path: 'clientId', select: 'fullName email avatarUrl role isVerified' },
-        { path: 'categoryId', select: 'name slug icon' },
-        { path: 'assignedWorkerId', select: 'fullName email avatarUrl role isVerified' },
-      ],
-    })
-    .sort({ createdAt: -1 });
+  const applications = await applicationWithJobPopulation(JobApplication.find({ workerId }).sort({ createdAt: -1 }));
+  return attachWorkerProfileIds(applications);
+}
+
+export async function updateApplicationStatus(applicationId, requester, payload) {
+  const nextStatus = payload.status;
+  const note = payload.note ? String(payload.note).trim() : '';
+
+  if (!APPLICATION_STATUSES.includes(nextStatus)) {
+    throw new AppError('Invalid application status', 400);
+  }
+
+  if (
+    !APPLICATION_WORKFLOW_STATUSES.includes(nextStatus) &&
+    !APPLICATION_TERMINAL_STATUSES.includes(nextStatus)
+  ) {
+    throw new AppError('Legacy statuses are read-only. Use workflow statuses only.', 400);
+  }
+
+  const application = await JobApplication.findById(applicationId).populate('jobId', 'clientId');
+
+  if (!application) {
+    throw new AppError('Application not found', 404);
+  }
+
+  if (!application.jobId) {
+    throw new AppError('The job linked to this application was not found', 404);
+  }
+
+  const { isAdmin, isWorkerOwner, isClientOwner } = getApplicationAccess(application, requester);
+
+  if (!isAdmin && !isWorkerOwner && !isClientOwner) {
+    throw new AppError('You do not have permission to update this application', 403);
+  }
+
+  const currentStatus = normalizeApplicationStatus(application.status);
+
+  if (currentStatus === nextStatus) {
+    const currentApplication = await applicationWithJobPopulation(JobApplication.findById(application._id));
+    return attachWorkerProfileId(currentApplication);
+  }
+
+  if (APPLICATION_TERMINAL_STATUSES.includes(currentStatus) && !isAdmin) {
+    throw new AppError('Terminal applications cannot be updated', 400);
+  }
+
+  validateTargetByRequesterRole({ nextStatus, isAdmin, isWorkerOwner, isClientOwner });
+
+  if (APPLICATION_WORKFLOW_STATUSES.includes(nextStatus) && !isAdmin) {
+    const expectedNextStatus = getNextWorkflowStatus(currentStatus);
+    if (!expectedNextStatus || expectedNextStatus !== nextStatus) {
+      throw new AppError(`Next expected status is ${expectedNextStatus || 'none'}`, 400);
+    }
+  }
+
+  if (APPLICATION_TERMINAL_STATUSES.includes(nextStatus)) {
+    validateTerminalTransition({ currentStatus, nextStatus, isAdmin });
+  }
+
+  if (nextStatus === 'accepted_by_client') {
+    await ensureNoCompetingAcceptedApplication(application);
+  }
+
+  application.status = nextStatus;
+  appendApplicationStatusHistory(application, { status: nextStatus, requester, note });
+  await application.save();
+
+  await syncJobFromApplicationStatus(application, nextStatus);
+
+  const updatedApplication = await applicationWithJobPopulation(JobApplication.findById(application._id));
+  return attachWorkerProfileId(updatedApplication);
 }

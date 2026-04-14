@@ -4,6 +4,7 @@ import authRoutes from './authRoutes.js';
 import bookingRoutes from './bookingRoutes.js';
 import categoryRoutes from './categoryRoutes.js';
 import clientProfileRoutes from './clientProfileRoutes.js';
+import communityRoutes from './communityRoutes.js';
 import conversationRoutes from './conversationRoutes.js';
 import jobRoutes from './jobRoutes.js';
 import paymentRoutes from './paymentRoutes.js';
@@ -25,6 +26,7 @@ router.get('/', (_req, res) => {
 router.use('/auth', authRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/community', communityRoutes);
 router.use('/conversations', conversationRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/reviews', reviewRoutes);

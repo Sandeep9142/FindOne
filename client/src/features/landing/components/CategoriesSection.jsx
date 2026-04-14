@@ -42,6 +42,36 @@ const iconByName = {
   Monitor,
 };
 
+const FALLBACK_CATEGORIES = [
+  { _id: 'fallback-electrical', name: 'Electrical', slug: 'electrical', icon: 'Zap', workerCount: 48, isFallback: true },
+  { _id: 'fallback-plumbing', name: 'Plumbing', slug: 'plumbing', icon: 'Droplets', workerCount: 36, isFallback: true },
+  { _id: 'fallback-home-repair', name: 'Home Repair', slug: 'home-repair', icon: 'Wrench', workerCount: 41, isFallback: true },
+  { _id: 'fallback-cleaning', name: 'Cleaning', slug: 'cleaning', icon: 'Sparkles', workerCount: 52, isFallback: true },
+  { _id: 'fallback-moving', name: 'Moving', slug: 'moving', icon: 'Truck', workerCount: 19, isFallback: true },
+  { _id: 'fallback-tutoring', name: 'Tutoring', slug: 'tutoring', icon: 'GraduationCap', workerCount: 27, isFallback: true },
+  { _id: 'fallback-event-support', name: 'Event Support', slug: 'event-support', icon: 'CalendarHeart', workerCount: 14, isFallback: true },
+  { _id: 'fallback-tech-help', name: 'Tech Help', slug: 'tech-help', icon: 'Monitor', workerCount: 23, isFallback: true },
+];
+
+const FALLBACK_WORKERS_BY_CATEGORY = {
+  'fallback-electrical': [
+    { _id: 'demo-ele-1', headline: 'Wiring, fan repair, and fitting specialist', hourlyRate: 280, ratingAverage: 4.8, serviceAreas: [{ city: 'Bhubaneswar', state: 'Odisha' }], userId: { fullName: 'Raju Sharma', isVerified: true }, isFallback: true },
+    { _id: 'demo-ele-2', headline: 'Experienced electrician for home services', hourlyRate: 260, ratingAverage: 4.6, serviceAreas: [{ city: 'Cuttack', state: 'Odisha' }], userId: { fullName: 'Manoj Behera', isVerified: true }, isFallback: true },
+  ],
+  'fallback-plumbing': [
+    { _id: 'demo-plu-1', headline: 'Tap leakage and bathroom fitting expert', hourlyRate: 240, ratingAverage: 4.7, serviceAreas: [{ city: 'Kolkata', state: 'West Bengal' }], userId: { fullName: 'Sourav Das', isVerified: true }, isFallback: true },
+    { _id: 'demo-plu-2', headline: 'Kitchen and pipeline maintenance specialist', hourlyRate: 250, ratingAverage: 4.5, serviceAreas: [{ city: 'Howrah', state: 'West Bengal' }], userId: { fullName: 'Amit Mondal', isVerified: false }, isFallback: true },
+  ],
+  'fallback-home-repair': [
+    { _id: 'demo-hom-1', headline: 'General home repair and fixture setup', hourlyRate: 230, ratingAverage: 4.4, serviceAreas: [{ city: 'Ranchi', state: 'Jharkhand' }], userId: { fullName: 'Deepak Kumar', isVerified: true }, isFallback: true },
+    { _id: 'demo-hom-2', headline: 'Quick wall, hinge, and furniture repairs', hourlyRate: 220, ratingAverage: 4.3, serviceAreas: [{ city: 'Patna', state: 'Bihar' }], userId: { fullName: 'Nitesh Singh', isVerified: false }, isFallback: true },
+  ],
+  'fallback-cleaning': [
+    { _id: 'demo-cle-1', headline: 'Deep home cleaning and sanitation support', hourlyRate: 200, ratingAverage: 4.9, serviceAreas: [{ city: 'Bhopal', state: 'Madhya Pradesh' }], userId: { fullName: 'Anita Verma', isVerified: true }, isFallback: true },
+    { _id: 'demo-cle-2', headline: 'Kitchen and bathroom intensive cleaning', hourlyRate: 190, ratingAverage: 4.7, serviceAreas: [{ city: 'Indore', state: 'Madhya Pradesh' }], userId: { fullName: 'Neha Yadav', isVerified: true }, isFallback: true },
+  ],
+};
+
 const containerVariants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.06 } },
@@ -68,6 +98,7 @@ export default function CategoriesSection() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [workersLoading, setWorkersLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category._id === selectedCategoryId) || null,
@@ -78,15 +109,22 @@ export default function CategoriesSection() {
     async function loadCategories() {
       setCategoriesLoading(true);
       setError('');
+      setNotice('');
 
       try {
         const categoryList = await categoryService.getAll();
-        setCategories(categoryList);
-        if (categoryList[0]) {
-          setSelectedCategoryId(categoryList[0]._id);
+        const normalizedList = Array.isArray(categoryList) && categoryList.length > 0 ? categoryList : FALLBACK_CATEGORIES;
+        setCategories(normalizedList);
+        setSelectedCategoryId(normalizedList[0]?._id || '');
+
+        if (!Array.isArray(categoryList) || categoryList.length === 0) {
+          setNotice('Showing sample categories while live category data is unavailable.');
         }
       } catch (fetchError) {
-        setError(getErrorMessage(fetchError, 'Unable to load service categories right now.'));
+        setCategories(FALLBACK_CATEGORIES);
+        setSelectedCategoryId(FALLBACK_CATEGORIES[0]?._id || '');
+        setNotice('Showing sample categories while we reconnect to live data.');
+        setError('');
       } finally {
         setCategoriesLoading(false);
       }
@@ -102,6 +140,14 @@ export default function CategoriesSection() {
         return;
       }
 
+      const category = categories.find((item) => item._id === selectedCategoryId);
+      const fallbackWorkers = FALLBACK_WORKERS_BY_CATEGORY[selectedCategoryId] || [];
+
+      if (category?.isFallback) {
+        setWorkers(fallbackWorkers);
+        return;
+      }
+
       setWorkersLoading(true);
       setError('');
 
@@ -110,16 +156,29 @@ export default function CategoriesSection() {
           category: selectedCategoryId,
           limit: 6,
         });
-        setWorkers(workerList);
+        if (Array.isArray(workerList) && workerList.length > 0) {
+          setWorkers(workerList);
+        } else {
+          setWorkers(fallbackWorkers);
+          if (fallbackWorkers.length > 0) {
+            setNotice('Showing sample worker previews for this category.');
+          }
+        }
       } catch (fetchError) {
-        setError(getErrorMessage(fetchError, 'Unable to load workers for this category.'));
+        setWorkers(fallbackWorkers);
+        if (fallbackWorkers.length > 0) {
+          setNotice('Showing sample worker previews while live data is unavailable.');
+          setError('');
+        } else {
+          setError(getErrorMessage(fetchError, 'Unable to load workers for this category.'));
+        }
       } finally {
         setWorkersLoading(false);
       }
     }
 
     loadWorkersForCategory();
-  }, [selectedCategoryId]);
+  }, [selectedCategoryId, categories]);
 
   return (
     <section className="section section--gray" id="categories">
@@ -133,6 +192,11 @@ export default function CategoriesSection() {
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
+          </div>
+        )}
+        {notice && (
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            {notice}
           </div>
         )}
 
@@ -278,9 +342,9 @@ export default function CategoriesSection() {
                     </div>
 
                     <div className="mt-4">
-                      <Link to={`/worker/${worker._id}`}>
+                      <Link to={worker.isFallback ? `/workers?category=${selectedCategory?.slug || ''}` : `/worker/${worker._id}`}>
                         <Button variant="primary" size="sm" className="w-full justify-center">
-                          View profile
+                          {worker.isFallback ? 'View directory' : 'View profile'}
                         </Button>
                       </Link>
                     </div>

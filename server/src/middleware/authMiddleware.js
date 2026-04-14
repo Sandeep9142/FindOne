@@ -43,6 +43,31 @@ export const protect = asyncHandler(async (req, _res, next) => {
   next();
 });
 
+export const optionalProtect = asyncHandler(async (req, _res, next) => {
+  const token = extractBearerToken(req);
+
+  if (!token) {
+    req.user = null;
+    next();
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, env.jwtSecret);
+    const user = await User.findById(payload.sub);
+
+    if (user && user.isActive) {
+      req.user = user;
+    } else {
+      req.user = null;
+    }
+  } catch {
+    req.user = null;
+  }
+
+  next();
+});
+
 export function authorize(...roles) {
   return (req, _res, next) => {
     if (!req.user) {

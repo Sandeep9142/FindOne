@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, ArrowRight, User } from 'lucide-react';
+import { Menu, X, ArrowRight, User, Users } from 'lucide-react';
 import Logo from '@components/common/Logo';
 import Button from '@components/common/Button';
 import { NAV_LINKS } from '@data/navigation';
@@ -102,6 +102,7 @@ export default function Navbar() {
   const secondaryAction = isAuthenticated
     ? { label: 'Dashboard', to: dashboardPath }
     : { label: 'Log In', to: '/login' };
+  const showPrimaryAction = !isAuthenticated;
   const profileName = getFirstName(user?.fullName, 'User');
 
   return (
@@ -149,17 +150,25 @@ export default function Navbar() {
         </ul>
 
         <div className="hidden lg:flex items-center gap-3">
+          <Link to="/community">
+            <Button variant={scrolled ? 'ghost' : 'ghost-white'} size="sm">
+              <Users size={14} />
+              Community
+            </Button>
+          </Link>
           <Link to={secondaryAction.to}>
             <Button variant={scrolled ? 'ghost' : 'ghost-white'} size="sm">
               {secondaryAction.label}
             </Button>
           </Link>
-          <Link to={primaryAction.to}>
-            <Button variant={scrolled ? 'primary' : 'gradient'} size="sm">
-              {primaryAction.label}
-              <ArrowRight size={14} />
-            </Button>
-          </Link>
+          {showPrimaryAction ? (
+            <Link to={primaryAction.to}>
+              <Button variant={scrolled ? 'primary' : 'gradient'} size="sm">
+                {primaryAction.label}
+                <ArrowRight size={14} />
+              </Button>
+            </Link>
+          ) : null}
           {isAuthenticated && (
             <Link
               to={profilePath}
@@ -263,6 +272,13 @@ export default function Navbar() {
             )}
 
             <div className="flex flex-col gap-1">
+              <Link
+                to="/community"
+                onClick={() => setMobileOpen(false)}
+                className="px-4 py-3 text-left text-base font-medium rounded-xl transition-all duration-200 text-slate-700 hover:text-primary-600 hover:bg-slate-50"
+              >
+                Community
+              </Link>
               {NAV_LINKS.map(({ href, label }) => {
                 const isActive = isHomePage && activeSection === href.replace('#', '');
 
@@ -292,12 +308,14 @@ export default function Navbar() {
                 {secondaryAction.label}
               </Button>
             </Link>
-            <Link to={primaryAction.to} onClick={() => setMobileOpen(false)}>
-              <Button variant="gradient" size="lg" className="w-full justify-center">
-                {primaryAction.label}
-                <ArrowRight size={16} />
-              </Button>
-            </Link>
+            {showPrimaryAction ? (
+              <Link to={primaryAction.to} onClick={() => setMobileOpen(false)}>
+                <Button variant="gradient" size="lg" className="w-full justify-center">
+                  {primaryAction.label}
+                  <ArrowRight size={16} />
+                </Button>
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

@@ -67,11 +67,44 @@ async function attachBookingReviews(bookings) {
     reviews.map((review) => [review.bookingId.toString(), review.toObject()])
   );
 
+  const workerUserIds = [
+    ...new Set(
+      bookings
+        .map((booking) => {
+          if (!booking?.workerId) {
+            return '';
+          }
+
+          if (typeof booking.workerId === 'object' && booking.workerId._id) {
+            return booking.workerId._id.toString();
+          }
+
+          return booking.workerId.toString();
+        })
+        .filter(Boolean)
+    ),
+  ];
+
+  const workerProfiles = await WorkerProfile.find({ userId: { $in: workerUserIds } })
+    .select('_id userId')
+    .lean();
+
+  const workerProfileIdMap = new Map(
+    workerProfiles.map((profile) => [profile.userId.toString(), profile._id.toString()])
+  );
+
   return bookings.map((booking) => {
     const plainBooking = toPlainBooking(booking);
+    const workerUserId = plainBooking?.workerId?._id
+      ? plainBooking.workerId._id.toString()
+      : plainBooking?.workerId
+        ? plainBooking.workerId.toString()
+        : '';
+
     return {
       ...plainBooking,
       review: reviewMap.get(plainBooking._id.toString()) || null,
+      workerProfileId: workerProfileIdMap.get(workerUserId) || '',
     };
   });
 }

@@ -1,6 +1,36 @@
 import mongoose from 'mongoose';
-import { APPLICATION_STATUSES } from '../config/constants.js';
+import { APPLICATION_STATUSES, USER_ROLES } from '../config/constants.js';
 import { Schema, baseSchemaOptions, objectId } from './helpers.js';
+
+const applicationStatusHistorySchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: APPLICATION_STATUSES,
+      required: true,
+    },
+    changedBy: {
+      type: objectId,
+      ref: 'User',
+      required: true,
+    },
+    changedByRole: {
+      type: String,
+      enum: USER_ROLES,
+      required: true,
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+  },
+  { _id: false }
+);
 
 const jobApplicationSchema = new Schema(
   {
@@ -27,7 +57,11 @@ const jobApplicationSchema = new Schema(
     status: {
       type: String,
       enum: APPLICATION_STATUSES,
-      default: 'pending',
+      default: 'applied',
+    },
+    statusHistory: {
+      type: [applicationStatusHistorySchema],
+      default: [],
     },
   },
   baseSchemaOptions

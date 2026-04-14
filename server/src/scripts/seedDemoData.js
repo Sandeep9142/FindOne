@@ -160,7 +160,15 @@ async function seedDemoData() {
     workerId: workerUser._id,
     coverMessage: 'I can take care of this quickly.',
     proposedRate: 550,
-    status: 'pending',
+    status: 'applied',
+    statusHistory: [
+      {
+        status: 'applied',
+        changedBy: workerUser._id,
+        changedByRole: 'worker',
+        changedAt: new Date(),
+      },
+    ],
   });
 
   const completedBooking = await Booking.create({

@@ -37,4 +37,8 @@ export const jobService = {
     const response = await api.get('/jobs/my/applied');
     return response.data;
   },
+  updateApplicationStatus: async (applicationId, data) => {
+    const response = await api.patch(`/jobs/applications/${applicationId}/status`, data);
+    return response.data;
+  },
 };

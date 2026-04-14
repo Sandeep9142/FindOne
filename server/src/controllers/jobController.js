@@ -9,6 +9,7 @@ import {
   listJobs,
   listMyAppliedJobs,
   listMyPostedJobs,
+  updateApplicationStatus,
   updateJob,
 } from '../services/jobService.js';
 
@@ -91,5 +92,14 @@ export const getMyAppliedJobs = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Applied jobs fetched successfully',
     data: applications,
+  });
+});
+
+export const patchApplicationStatus = asyncHandler(async (req, res) => {
+  const application = await updateApplicationStatus(req.params.applicationId, req.user, req.body);
+
+  return sendSuccess(res, {
+    message: 'Application status updated successfully',
+    data: application,
   });
 });

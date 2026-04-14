@@ -16,6 +16,7 @@ const ClientDashboardPage = lazy(() => import("@features/dashboard/client/pages/
 const AdminDashboardPage = lazy(() => import("@features/dashboard/admin/pages/AdminDashboardPage"));
 const JobsPage = lazy(() => import("@features/jobs/pages/JobsPage"));
 const WorkersPage = lazy(() => import("@features/workers/pages/WorkersPage"));
+const CommunityPage = lazy(() => import("@features/community/pages/CommunityPage"));
 const ProfilePage = lazy(() => import("@features/profiles/pages/ProfilePage"));
 const MessagesPage = lazy(() => import("@features/messaging/pages/MessagesPage"));
 const NotFoundPage = lazy(() => import("@features/misc/pages/NotFoundPage"));
@@ -58,6 +59,7 @@ export default function AppRouter() {
           <Route index element={<HomePage />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="workers" element={<WorkersPage />} />
+          <Route path="community" element={<CommunityPage />} />
           <Route path="worker/:id" element={<ProfilePage />} />
         </Route>
 

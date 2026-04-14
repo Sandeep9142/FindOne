@@ -127,7 +127,8 @@ Key fields:
 - `workerId` - ref `users`
 - `coverMessage`
 - `proposedRate`
-- `status` - `pending | shortlisted | accepted | rejected | withdrawn`
+- `status` - `applied | verification | accepted_by_client | work_started | work_completed | payment | review | rejected | cancelled | withdrawn`
+- `statusHistory` - ordered status change log with actor and timestamp
 - `createdAt`
 - `updatedAt`
 

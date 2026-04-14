@@ -8,6 +8,7 @@ import {
   getJobs,
   getMyAppliedJobs,
   getMyPostedJobs,
+  patchApplicationStatus,
   updateClientJob,
 } from '../controllers/jobController.js';
 import { authorize, protect } from '../middleware/authMiddleware.js';
@@ -17,6 +18,7 @@ import {
   createJobSchema,
   jobIdParamsSchema,
   listJobsSchema,
+  updateApplicationStatusSchema,
   updateJobSchema,
 } from '../validators/jobValidators.js';
 
@@ -24,12 +26,25 @@ const router = Router();
 
 router.get('/my/posted', protect, authorize('client', 'admin'), getMyPostedJobs);
 router.get('/my/applied', protect, authorize('worker', 'admin'), getMyAppliedJobs);
+router.patch(
+  '/applications/:applicationId/status',
+  protect,
+  authorize('worker', 'client', 'admin'),
+  validateRequest(updateApplicationStatusSchema),
+  patchApplicationStatus
+);
 router.get('/', validateRequest(listJobsSchema), getJobs);
 router.get('/:id', validateRequest(jobIdParamsSchema), getJob);
 router.post('/', protect, authorize('client', 'admin'), validateRequest(createJobSchema), createClientJob);
 router.put('/:id', protect, authorize('client', 'admin'), validateRequest(updateJobSchema), updateClientJob);
 router.delete('/:id', protect, authorize('client', 'admin'), validateRequest(jobIdParamsSchema), deleteClientJob);
 router.post('/:id/apply', protect, authorize('worker', 'admin'), validateRequest(applyToJobSchema), applyForJob);
-router.get('/:id/applications', protect, authorize('client', 'admin'), validateRequest(jobIdParamsSchema), getApplicationsForJob);
+router.get(
+  '/:id/applications',
+  protect,
+  authorize('client', 'admin'),
+  validateRequest(jobIdParamsSchema),
+  getApplicationsForJob
+);
 
 export default router;

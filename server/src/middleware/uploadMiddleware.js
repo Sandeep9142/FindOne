@@ -47,3 +47,4 @@ function createUploader(folderName) {
 
 export const avatarUpload = createUploader('avatars');
 export const portfolioUpload = createUploader('portfolio');
+export const communityUpload = createUploader('community');

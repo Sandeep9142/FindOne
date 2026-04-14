@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, MapPin, MessageSquare, ShieldCheck, Star } from 'lucide-react';
 import Button from '@components/common/Button';
-import { bookingService, messageService, workerService } from '@services';
+import { bookingService, categoryService, messageService, workerService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
 
 function getErrorMessage(error, fallback) {
@@ -26,6 +26,7 @@ export default function ProfilePage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const showToast = useUIStore((state) => state.showToast);
   const [worker, setWorker] = useState(null);
+  const [availableCategories, setAvailableCategories] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -62,16 +63,22 @@ export default function ProfilePage() {
       setError('');
 
       try {
-        const [workerProfile, workerReviews] = await Promise.all([
+        const [workerProfile, workerReviews, categoryList] = await Promise.all([
           workerService.getById(id),
           workerService.getReviews(id),
+          categoryService.getAll(),
         ]);
 
+        const workerCategories = Array.isArray(workerProfile.categories) ? workerProfile.categories : [];
+        const fallbackCategories = Array.isArray(categoryList) ? categoryList : [];
+        const nextAvailableCategories = workerCategories.length > 0 ? workerCategories : fallbackCategories;
+
         setWorker(workerProfile);
+        setAvailableCategories(nextAvailableCategories);
         setReviews(workerReviews);
         setBookingForm((current) => ({
           ...current,
-          categoryId: current.categoryId || workerProfile.categories?.[0]?._id || '',
+          categoryId: current.categoryId || nextAvailableCategories[0]?._id || '',
           title: current.title || `Book ${workerProfile.userId?.fullName || 'worker'}`,
           amount: current.amount || String(workerProfile.hourlyRate || ''),
         }));
@@ -100,6 +107,11 @@ export default function ProfilePage() {
 
     if (!worker?.userId?._id) {
       showToast('Worker account is not ready for bookings yet.', 'error');
+      return;
+    }
+
+    if (!bookingForm.categoryId) {
+      showToast('Please select a service category for this booking.', 'error');
       return;
     }
 
@@ -503,13 +515,17 @@ export default function ProfilePage() {
             <form id="booking-form" className="mt-6 space-y-4" onSubmit={handleBookingSubmit}>
               <select
                 required
+                disabled={availableCategories.length === 0}
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
                 value={bookingForm.categoryId}
                 onChange={(event) =>
                   setBookingForm((current) => ({ ...current, categoryId: event.target.value }))
                 }
               >
-                {(worker.categories || []).map((category) => (
+                {availableCategories.length === 0 ? (
+                  <option value="">No categories available</option>
+                ) : null}
+                {availableCategories.map((category) => (
                   <option key={category._id} value={category._id}>
                     {category.name}
                   </option>
