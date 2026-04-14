@@ -9,3 +9,5 @@ export { default as Review } from './Review.js';
 export { default as Conversation } from './Conversation.js';
 export { default as Message } from './Message.js';
 export { default as Payment } from './Payment.js';
+export { default as CommunityPost } from './CommunityPost.js';
+export { default as CommunityComment } from './CommunityComment.js';

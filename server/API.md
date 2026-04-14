@@ -46,6 +46,7 @@ Authentication:
 - `GET /jobs/:id/applications`
 - `GET /jobs/my/posted`
 - `GET /jobs/my/applied`
+- `PATCH /jobs/applications/:applicationId/status`
 
 ## Bookings
 

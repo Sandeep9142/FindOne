@@ -28,15 +28,25 @@ export const createPaymentSchema = z.object({
       workerId: objectIdSchema.optional(),
       amount: z.coerce.number().min(0).optional(),
       currency: z.string().trim().min(3).max(10).optional(),
-      provider: z.string().trim().min(1).max(50).optional(),
-      providerPaymentId: z.string().trim().max(100).optional().nullable(),
-      status: z.enum(PAYMENT_STATUSES).optional(),
+      mode: z.enum(['online', 'cash']).optional(),
     })
     .refine((value) => Boolean(value.bookingId) !== Boolean(value.jobId), {
       message: 'Provide exactly one of bookingId or jobId',
       path: ['bookingId'],
     }),
   params: z.object({}),
+  query: emptyQuerySchema,
+});
+
+export const verifyPaymentSchema = z.object({
+  body: z.object({
+    razorpayOrderId: z.string().trim().min(1),
+    razorpayPaymentId: z.string().trim().min(1),
+    razorpaySignature: z.string().trim().min(1),
+  }),
+  params: z.object({
+    id: objectIdSchema,
+  }),
   query: emptyQuerySchema,
 });
 

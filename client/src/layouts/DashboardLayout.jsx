@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Briefcase,
   MessageSquare,
+  Users,
   User,
   LogOut,
   Menu,
@@ -41,6 +42,7 @@ export default function DashboardLayout() {
     primaryDashboardLink,
     ...(isWorker ? [{ to: '/dashboard/worker/profile', label: 'Profile', icon: User }] : []),
     { to: '/jobs', label: user?.role === 'worker' ? 'Find Work' : 'Browse Jobs', icon: Search },
+    { to: '/community', label: 'Community', icon: Users },
     ...(isClientOrAdmin ? [{ to: '/dashboard/workers', label: 'Find Workers', icon: User }] : []),
     { to: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
   ];

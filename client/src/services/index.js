@@ -6,3 +6,5 @@ export { bookingService } from './bookingService';
 export { categoryService } from './categoryService';
 export { messageService } from './messageService';
 export { reviewService } from './reviewService';
+export { paymentService } from './paymentService';
+export { communityService } from './communityService';

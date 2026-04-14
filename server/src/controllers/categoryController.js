@@ -7,6 +7,12 @@ import { Category, WorkerProfile } from '../models/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const FALLBACK_CATEGORIES = [
+  { name: 'Electrical', slug: 'electrical', icon: 'Zap', sortOrder: 10, isActive: true },
+  { name: 'Plumbing', slug: 'plumbing', icon: 'Droplets', sortOrder: 20, isActive: true },
+  { name: 'Cleaning', slug: 'cleaning', icon: 'Sparkles', sortOrder: 30, isActive: true },
+  { name: 'Home Repair', slug: 'home-repair', icon: 'Wrench', sortOrder: 40, isActive: true },
+];
 
 async function ensureCategoriesExist() {
   const existingCount = await Category.countDocuments({ isActive: true });
@@ -14,9 +20,16 @@ async function ensureCategoriesExist() {
     return;
   }
 
-  const seedPath = path.resolve(__dirname, '../../../database/seeds/categories.json');
-  const raw = await fs.readFile(seedPath, 'utf-8');
-  const seedCategories = JSON.parse(raw);
+  let seedCategories = [];
+
+  try {
+    const seedPath = path.resolve(__dirname, '../../../database/seeds/categories.json');
+    const raw = await fs.readFile(seedPath, 'utf-8');
+    seedCategories = JSON.parse(raw);
+  } catch (error) {
+    console.warn('Categories seed file unavailable. Using fallback categories.', error?.message || error);
+    seedCategories = FALLBACK_CATEGORIES;
+  }
 
   await Promise.all(
     seedCategories.map((category) =>

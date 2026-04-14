@@ -14,6 +14,39 @@ const avatarColors = {
 
 const colorCycle = ['blue', 'pink', 'violet'];
 
+const FALLBACK_TESTIMONIALS = [
+  {
+    id: 'demo-testimonial-1',
+    quote: 'Booked an electrician in less than an hour. The worker arrived on time and fixed the issue cleanly.',
+    author: 'Priyanka Das',
+    role: 'Client review for Electrical',
+    avatar: 'P',
+    color: 'blue',
+    rating: 5,
+    featured: false,
+  },
+  {
+    id: 'demo-testimonial-2',
+    quote: 'As a worker, I receive clear job details and payment updates. The workflow is smooth and easy to track.',
+    author: 'Raju Sharma',
+    role: 'Worker feedback',
+    avatar: 'R',
+    color: 'pink',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'demo-testimonial-3',
+    quote: 'Great experience from booking to completion. The review and payment steps are transparent for both sides.',
+    author: 'Amit Sen',
+    role: 'Client review for Home Repair',
+    avatar: 'A',
+    color: 'violet',
+    rating: 4,
+    featured: false,
+  },
+];
+
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.message || fallback;
 }
@@ -46,17 +79,27 @@ export default function TestimonialsSection() {
   const [apiTestimonials, setApiTestimonials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     async function loadTestimonials() {
       setLoading(true);
       setError('');
+      setNotice('');
 
       try {
         const reviews = await reviewService.getTestimonials({ limit: 6 });
-        setApiTestimonials(mapApiTestimonials(reviews));
+        const mapped = mapApiTestimonials(reviews);
+        if (mapped.length > 0) {
+          setApiTestimonials(mapped);
+        } else {
+          setApiTestimonials(FALLBACK_TESTIMONIALS);
+          setNotice('Showing sample testimonials while live review data grows.');
+        }
       } catch (fetchError) {
-        setError(getErrorMessage(fetchError, 'Unable to load testimonials right now.'));
+        setApiTestimonials(FALLBACK_TESTIMONIALS);
+        setNotice('Showing sample testimonials while we reconnect to live reviews.');
+        setError('');
       } finally {
         setLoading(false);
       }
@@ -79,6 +122,11 @@ export default function TestimonialsSection() {
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
+          </div>
+        )}
+        {notice && (
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            {notice}
           </div>
         )}
 
