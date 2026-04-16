@@ -25,6 +25,7 @@ export const listJobsSchema = z.object({
     clientId: objectIdSchema.optional(),
     assignedWorkerId: objectIdSchema.optional(),
     openOnly: z.enum(['true', 'false']).optional(),
+    matchWorkerCategories: z.enum(['true', 'false']).optional(),
   }),
 });
 

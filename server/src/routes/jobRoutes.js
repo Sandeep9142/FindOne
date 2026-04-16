@@ -11,7 +11,7 @@ import {
   patchApplicationStatus,
   updateClientJob,
 } from '../controllers/jobController.js';
-import { authorize, protect } from '../middleware/authMiddleware.js';
+import { authorize, optionalProtect, protect } from '../middleware/authMiddleware.js';
 import { validateRequest } from '../middleware/validateMiddleware.js';
 import {
   applyToJobSchema,
@@ -33,7 +33,7 @@ router.patch(
   validateRequest(updateApplicationStatusSchema),
   patchApplicationStatus
 );
-router.get('/', validateRequest(listJobsSchema), getJobs);
+router.get('/', optionalProtect, validateRequest(listJobsSchema), getJobs);
 router.get('/:id', validateRequest(jobIdParamsSchema), getJob);
 router.post('/', protect, authorize('client', 'admin'), validateRequest(createJobSchema), createClientJob);
 router.put('/:id', protect, authorize('client', 'admin'), validateRequest(updateJobSchema), updateClientJob);

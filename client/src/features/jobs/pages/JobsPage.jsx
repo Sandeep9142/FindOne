@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Briefcase, MapPin, Search } from 'lucide-react';
 import Button from '@components/common/Button';
-import { categoryService, jobService } from '@services';
+import { categoryService, jobService, workerService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
 
 function getErrorMessage(error, fallback) {
@@ -22,13 +22,15 @@ function formatBudget(job) {
 }
 
 export default function JobsPage() {
-  const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  const authLoading = useAuthStore((state) => state.loading);
   const showToast = useUIStore((state) => state.showToast);
   const isWorker = user?.role === 'worker';
   const isClientOrAdmin = user?.role === 'client' || user?.role === 'admin';
   const [categories, setCategories] = useState([]);
+  const [workerCategories, setWorkerCategories] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,6 +56,8 @@ export default function JobsPage() {
     scheduledDate: '',
     skillsRequired: '',
   });
+  const visibleCategories = isWorker ? workerCategories : categories;
+  const workerNeedsCategories = isWorker && !loading && workerCategories.length === 0;
 
   function validateJobForm() {
     if (!jobForm.categoryId) {
@@ -103,6 +107,7 @@ export default function JobsPage() {
         q: currentFilters.q || undefined,
         categoryId: currentFilters.categoryId || undefined,
         openOnly: currentFilters.openOnly ? 'true' : undefined,
+        matchWorkerCategories: isWorker ? 'true' : undefined,
         limit: 24,
       });
       setJobs(result);
@@ -114,32 +119,69 @@ export default function JobsPage() {
   }
 
   useEffect(() => {
-    if (hasLoadedRef.current) {
+    if (!authInitialized || authLoading) {
       return;
     }
 
-    hasLoadedRef.current = true;
+    let isActive = true;
 
     async function bootstrap() {
+      setLoading(true);
+      setError('');
+
       try {
-        const [categoryList, jobList] = await Promise.all([
+        const [categoryList, jobList, workerProfile] = await Promise.all([
           categoryService.getAll(),
-          jobService.getAll({ openOnly: 'true', limit: 24 }),
+          jobService.getAll({
+            openOnly: 'true',
+            matchWorkerCategories: isWorker ? 'true' : undefined,
+            limit: 24,
+          }),
+          isWorker && isAuthenticated ? workerService.getMyProfile() : Promise.resolve(null),
         ]);
+        const matchedWorkerCategories = Array.isArray(workerProfile?.categories)
+          ? workerProfile.categories
+          : [];
+
+        if (!isActive) {
+          return;
+        }
+
         setCategories(categoryList);
+        setWorkerCategories(matchedWorkerCategories);
         setJobs(jobList);
+        setFilters((current) => ({
+          ...current,
+          categoryId:
+            current.categoryId &&
+            matchedWorkerCategories.length > 0 &&
+            !matchedWorkerCategories.some((category) => category._id === current.categoryId)
+              ? ''
+              : current.categoryId,
+        }));
         if (categoryList[0]) {
-          setJobForm((current) => ({ ...current, categoryId: categoryList[0]._id }));
+          setJobForm((current) => ({
+            ...current,
+            categoryId: current.categoryId || categoryList[0]._id,
+          }));
         }
       } catch (fetchError) {
-        setError(getErrorMessage(fetchError, 'Unable to load jobs right now.'));
+        if (isActive) {
+          setError(getErrorMessage(fetchError, 'Unable to load jobs right now.'));
+        }
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     }
 
     bootstrap();
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [authInitialized, authLoading, isAuthenticated, isWorker]);
 
   function handleFilterSubmit(event) {
     event.preventDefault();
@@ -296,9 +338,12 @@ export default function JobsPage() {
             onChange={(event) =>
               setFilters((current) => ({ ...current, categoryId: event.target.value }))
             }
+            disabled={isWorker && visibleCategories.length === 0}
           >
-            <option value="">All categories</option>
-            {categories.map((category) => (
+            <option value="">
+              {isWorker ? 'All my categories' : 'All categories'}
+            </option>
+            {visibleCategories.map((category) => (
               <option key={category._id} value={category._id}>
                 {category.name}
               </option>
@@ -486,7 +531,9 @@ export default function JobsPage() {
         </div>
       ) : jobs.length === 0 ? (
         <div className="mt-10 rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
-          No jobs matched those filters.
+          {workerNeedsCategories
+            ? 'Add your service category in your worker profile to see matching jobs here.'
+            : 'No jobs matched those filters.'}
         </div>
       ) : (
         <div className="mt-10 grid gap-6">
