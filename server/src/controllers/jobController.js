@@ -14,7 +14,7 @@ import {
 } from '../services/jobService.js';
 
 export const getJobs = asyncHandler(async (req, res) => {
-  const jobs = await listJobs(req.query);
+  const jobs = await listJobs(req.query, req.user);
 
   return sendSuccess(res, {
     message: 'Jobs fetched successfully',

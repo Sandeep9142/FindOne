@@ -41,6 +41,16 @@ async function ensureCategory(categoryId) {
   return category;
 }
 
+async function getWorkerCategoryIds(workerId) {
+  const workerProfile = await WorkerProfile.findOne({ userId: workerId }).select('categories');
+
+  if (!workerProfile) {
+    return [];
+  }
+
+  return workerProfile.categories.map((categoryId) => categoryId.toString());
+}
+
 function validateLocation(location) {
   if (!location || typeof location !== 'object') {
     throw new AppError('Location is required', 400);
@@ -312,7 +322,7 @@ async function attachWorkerProfileId(application) {
   return applicationWithProfile || application;
 }
 
-export async function listJobs(query) {
+export async function listJobs(query, requester = null) {
   const filters = {};
 
   if (query.status) {
@@ -333,6 +343,24 @@ export async function listJobs(query) {
 
   if (query.openOnly === 'true') {
     filters.status = 'open';
+  }
+
+  if (query.matchWorkerCategories === 'true' && requester?.role === 'worker') {
+    const workerCategoryIds = await getWorkerCategoryIds(requester._id);
+
+    if (workerCategoryIds.length === 0) {
+      return [];
+    }
+
+    if (query.categoryId) {
+      if (!workerCategoryIds.includes(query.categoryId)) {
+        return [];
+      }
+
+      filters.categoryId = query.categoryId;
+    } else {
+      filters.categoryId = { $in: workerCategoryIds };
+    }
   }
 
   const searchText = query.q?.trim();
@@ -412,6 +440,13 @@ export async function applyToJob(jobId, workerId, payload) {
 
   if (job.status !== 'open') {
     throw new AppError('Only open jobs can receive applications', 400);
+  }
+
+  const workerCategoryIds = await getWorkerCategoryIds(workerId);
+  const jobCategoryId = job.categoryId?.toString();
+
+  if (!jobCategoryId || !workerCategoryIds.includes(jobCategoryId)) {
+    throw new AppError('You can only apply to jobs that match your service categories', 403);
   }
 
   const existingApplication = await JobApplication.findOne({ jobId, workerId });
