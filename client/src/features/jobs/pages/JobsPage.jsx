@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Briefcase, MapPin, Search } from 'lucide-react';
 import Button from '@components/common/Button';
@@ -22,9 +22,10 @@ function formatBudget(job) {
 }
 
 export default function JobsPage() {
-  const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  const authLoading = useAuthStore((state) => state.loading);
   const showToast = useUIStore((state) => state.showToast);
   const isWorker = user?.role === 'worker';
   const isClientOrAdmin = user?.role === 'client' || user?.role === 'admin';
@@ -118,13 +119,16 @@ export default function JobsPage() {
   }
 
   useEffect(() => {
-    if (hasLoadedRef.current) {
+    if (!authInitialized || authLoading) {
       return;
     }
 
-    hasLoadedRef.current = true;
+    let isActive = true;
 
     async function bootstrap() {
+      setLoading(true);
+      setError('');
+
       try {
         const [categoryList, jobList, workerProfile] = await Promise.all([
           categoryService.getAll(),
@@ -139,6 +143,10 @@ export default function JobsPage() {
           ? workerProfile.categories
           : [];
 
+        if (!isActive) {
+          return;
+        }
+
         setCategories(categoryList);
         setWorkerCategories(matchedWorkerCategories);
         setJobs(jobList);
@@ -152,17 +160,28 @@ export default function JobsPage() {
               : current.categoryId,
         }));
         if (categoryList[0]) {
-          setJobForm((current) => ({ ...current, categoryId: categoryList[0]._id }));
+          setJobForm((current) => ({
+            ...current,
+            categoryId: current.categoryId || categoryList[0]._id,
+          }));
         }
       } catch (fetchError) {
-        setError(getErrorMessage(fetchError, 'Unable to load jobs right now.'));
+        if (isActive) {
+          setError(getErrorMessage(fetchError, 'Unable to load jobs right now.'));
+        }
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     }
 
     bootstrap();
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [authInitialized, authLoading, isAuthenticated, isWorker]);
 
   function handleFilterSubmit(event) {
     event.preventDefault();
