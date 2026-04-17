@@ -7,9 +7,12 @@ import { Schema, baseSchemaOptions, objectId } from './helpers.js';
 
 const serviceAreaSchema = new Schema(
   {
-    city: { type: String, trim: true, required: true },
-    state: { type: String, trim: true, required: true },
+    addressLine: { type: String, trim: true, default: '' },
+    city: { type: String, trim: true, default: '' },
+    state: { type: String, trim: true, default: '' },
     pincode: { type: String, trim: true, default: '' },
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
   },
   { _id: false }
 );

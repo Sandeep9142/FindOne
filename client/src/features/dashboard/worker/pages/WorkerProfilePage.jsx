@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Camera, LogOut } from 'lucide-react';
+import { Camera, LogOut, MapPin } from 'lucide-react';
 import Button from '@components/common/Button';
 import { ACCEPTED_IMAGE_TYPES, MAX_FILE_SIZE } from '@config/constants';
 import { categoryService, workerService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
+import { getBrowserLocation } from '@utils';
 
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.message || fallback;
@@ -23,6 +24,7 @@ function buildProfileForm(workerProfile, currentUser) {
   const account = workerProfile?.userId || currentUser || {};
   const hourlyRate = Number(workerProfile?.hourlyRate || 0);
   const experienceYears = Number(workerProfile?.experienceYears || 0);
+  const serviceArea = workerProfile?.serviceAreas?.[0] || {};
 
   return {
     fullName: account?.fullName || '',
@@ -33,6 +35,12 @@ function buildProfileForm(workerProfile, currentUser) {
     hourlyRate: hourlyRate > 0 ? String(hourlyRate) : '',
     experienceYears: experienceYears > 0 ? String(experienceYears) : '',
     categoryIds: (workerProfile?.categories || []).map((category) => category._id),
+    serviceAddressLine: serviceArea.addressLine || '',
+    serviceCity: serviceArea.city || '',
+    serviceState: serviceArea.state || '',
+    servicePincode: serviceArea.pincode || '',
+    serviceLat: serviceArea.lat ?? '',
+    serviceLng: serviceArea.lng ?? '',
   };
 }
 
@@ -49,6 +57,7 @@ export default function WorkerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [profileForm, setProfileForm] = useState({
     fullName: '',
@@ -59,6 +68,12 @@ export default function WorkerProfilePage() {
     hourlyRate: '',
     experienceYears: '',
     categoryIds: [],
+    serviceAddressLine: '',
+    serviceCity: '',
+    serviceState: '',
+    servicePincode: '',
+    serviceLat: '',
+    serviceLng: '',
   });
 
   useEffect(() => {
@@ -141,11 +156,38 @@ export default function WorkerProfilePage() {
     }
   }
 
+  async function handleUseCurrentLocation() {
+    setFetchingLocation(true);
+
+    try {
+      const location = await getBrowserLocation();
+      setProfileForm((current) => ({
+        ...current,
+        serviceLat: location.lat,
+        serviceLng: location.lng,
+      }));
+      showToast('Current location captured. Add city/state if they are empty.');
+    } catch (error) {
+      showToast(error.message || 'Unable to fetch current location.', 'error');
+    } finally {
+      setFetchingLocation(false);
+    }
+  }
+
   async function handleProfileSubmit(event) {
     event.preventDefault();
     setSavingProfile(true);
 
     try {
+      const serviceArea = {
+        addressLine: profileForm.serviceAddressLine.trim(),
+        city: profileForm.serviceCity.trim(),
+        state: profileForm.serviceState.trim(),
+        pincode: profileForm.servicePincode.trim(),
+        lat: profileForm.serviceLat === '' ? null : Number(profileForm.serviceLat),
+        lng: profileForm.serviceLng === '' ? null : Number(profileForm.serviceLng),
+      };
+      const hasServiceArea = Object.values(serviceArea).some((value) => value !== '' && value !== null);
       const [updatedProfile, updatedAccount] = await Promise.all([
         workerService.updateProfile({
           headline: profileForm.headline,
@@ -157,6 +199,7 @@ export default function WorkerProfilePage() {
           hourlyRate: Number(profileForm.hourlyRate || 0),
           experienceYears: Number(profileForm.experienceYears || 0),
           categories: profileForm.categoryIds,
+          serviceAreas: hasServiceArea ? [serviceArea] : [],
         }),
         workerService.updateAccountInfo({
           fullName: profileForm.fullName,
@@ -357,6 +400,77 @@ export default function WorkerProfilePage() {
                     }
                   />
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Service location</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Clients nearby this area will see your profile first.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={fetchingLocation}
+                  onClick={handleUseCurrentLocation}
+                >
+                  <MapPin size={16} />
+                  Use current location
+                </Button>
+              </div>
+
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <input
+                  type="text"
+                  placeholder="Address line"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+                  value={profileForm.serviceAddressLine}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, serviceAddressLine: event.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="City"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                  value={profileForm.serviceCity}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, serviceCity: event.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="State"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                  value={profileForm.serviceState}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, serviceState: event.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="Pincode"
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                  value={profileForm.servicePincode}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, servicePincode: event.target.value }))
+                  }
+                />
+                <input
+                  type="text"
+                  readOnly
+                  placeholder="Coordinates"
+                  className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500"
+                  value={
+                    profileForm.serviceLat && profileForm.serviceLng
+                      ? `${profileForm.serviceLat}, ${profileForm.serviceLng}`
+                      : ''
+                  }
+                />
               </div>
             </div>
 

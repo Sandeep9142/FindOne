@@ -2,11 +2,40 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, Search, ShieldCheck, Star } from 'lucide-react';
 import Button from '@components/common/Button';
-import { categoryService, workerService } from '@services';
+import { categoryService, clientService, workerService } from '@services';
 import { useAuthStore } from '@store';
+import { formatDistanceKm } from '@utils';
 
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.message || fallback;
+}
+
+function getLocationQuery(location) {
+  if (!location) {
+    return {};
+  }
+
+  if (Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng))) {
+    return {
+      nearLat: location.lat,
+      nearLng: location.lng,
+      radiusKm: 25,
+    };
+  }
+
+  return {
+    pincode: location.pincode || undefined,
+    city: location.city || undefined,
+    state: location.state || undefined,
+  };
+}
+
+function getLocationLabel(location) {
+  if (!location) {
+    return '';
+  }
+
+  return [location.city, location.state, location.pincode].filter(Boolean).join(', ');
 }
 
 export default function WorkersPage() {
@@ -14,6 +43,7 @@ export default function WorkersPage() {
   const loadKeyRef = useRef(null);
   const [categories, setCategories] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [clientLocation, setClientLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
@@ -22,9 +52,19 @@ export default function WorkersPage() {
     availableNow: searchParams.get('availableNow') === 'true',
   });
   const user = useAuthStore((state) => state.user);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  const authLoading = useAuthStore((state) => state.loading);
   const isWorker = user?.role === 'worker';
+  const shouldUseClientLocation = user?.role === 'client';
+  const locationLabel = getLocationLabel(clientLocation);
 
   async function loadWorkers(currentFilters = filters) {
+    if (shouldUseClientLocation && !clientLocation) {
+      setWorkers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -33,6 +73,7 @@ export default function WorkersPage() {
         q: currentFilters.q || undefined,
         category: currentFilters.category || undefined,
         availableNow: currentFilters.availableNow ? 'true' : undefined,
+        ...getLocationQuery(clientLocation),
         limit: 24,
       };
       const result = await workerService.getAll(nextQuery);
@@ -45,6 +86,10 @@ export default function WorkersPage() {
   }
 
   useEffect(() => {
+    if (!authInitialized || authLoading) {
+      return;
+    }
+
     if (isWorker) {
       setLoading(false);
       setWorkers([]);
@@ -60,7 +105,11 @@ export default function WorkersPage() {
 
     async function bootstrap() {
       try {
-        const categoryList = await categoryService.getAll();
+        const [categoryList, clientProfile] = await Promise.all([
+          categoryService.getAll(),
+          shouldUseClientLocation ? clientService.getMyProfile() : Promise.resolve(null),
+        ]);
+        const nextClientLocation = clientProfile?.preferredLocations?.[0] || null;
         const categoryParam = searchParams.get('category');
         const resolvedCategoryId = categoryParam
           ? categoryList.find(
@@ -72,14 +121,18 @@ export default function WorkersPage() {
           category: resolvedCategoryId,
           availableNow: searchParams.get('availableNow') === 'true',
         };
-        const workerList = await workerService.getAll({
-          q: nextFilters.q || undefined,
-          category: nextFilters.category || undefined,
-          availableNow: nextFilters.availableNow ? 'true' : undefined,
-          limit: 24,
-        });
+        const workerList = nextClientLocation || !shouldUseClientLocation
+          ? await workerService.getAll({
+              q: nextFilters.q || undefined,
+              category: nextFilters.category || undefined,
+              availableNow: nextFilters.availableNow ? 'true' : undefined,
+              ...getLocationQuery(nextClientLocation),
+              limit: 24,
+            })
+          : [];
 
         setCategories(categoryList);
+        setClientLocation(nextClientLocation);
         setFilters(nextFilters);
         setWorkers(workerList);
       } catch (fetchError) {
@@ -90,7 +143,7 @@ export default function WorkersPage() {
     }
 
     bootstrap();
-  }, [isWorker, searchParams]);
+  }, [authInitialized, authLoading, isWorker, searchParams, shouldUseClientLocation]);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -208,6 +261,28 @@ export default function WorkersPage() {
         </div>
       </form>
 
+      {shouldUseClientLocation && (
+        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {clientLocation ? (
+            <>
+              Showing workers near {locationLabel || 'your saved coordinates'}.
+              {' '}
+              <Link to="/dashboard/client" className="font-semibold underline">
+                Update location
+              </Link>
+            </>
+          ) : (
+            <>
+              Add your client location to see nearby workers first.
+              {' '}
+              <Link to="/dashboard/client" className="font-semibold underline">
+                Add location
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
@@ -220,12 +295,15 @@ export default function WorkersPage() {
         </div>
       ) : workers.length === 0 ? (
         <div className="mt-10 rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-500">
-          No workers matched those filters yet.
+          {shouldUseClientLocation && !clientLocation
+            ? 'Add your client location to see nearby workers.'
+            : 'No nearby workers matched those filters yet.'}
         </div>
       ) : (
         <div className="mt-10 grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
           {workers.map((worker) => {
             const displayName = worker.userId?.fullName || 'Worker';
+            const distanceLabel = formatDistanceKm(worker.distanceKm);
             const location = worker.serviceAreas?.[0]
               ? `${worker.serviceAreas[0].city}, ${worker.serviceAreas[0].state}`
               : 'Location shared after booking';
@@ -271,7 +349,7 @@ export default function WorkersPage() {
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <MapPin size={14} />
-                    {location}
+                    {distanceLabel || location}
                   </span>
                 </div>
 

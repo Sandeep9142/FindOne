@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, CheckCircle, Clock, ListChecks, Search, Star, Users } from 'lucide-react';
+import { Briefcase, CheckCircle, Clock, ListChecks, MapPin, Search, Star, Users } from 'lucide-react';
 import Button from '@components/common/Button';
 import { Modal } from '@components/ui';
-import { bookingService, jobService, paymentService } from '@services';
+import { bookingService, clientService, jobService, paymentService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
+import { getBrowserLocation } from '@utils';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : 'Flexible';
@@ -185,6 +186,28 @@ function getApplicationJobContext(application) {
   return null;
 }
 
+function getApplicationJobId(application) {
+  const jobContext = getApplicationJobContext(application);
+
+  if (jobContext?._id) {
+    return String(jobContext._id);
+  }
+
+  if (application.jobId && typeof application.jobId === 'object') {
+    return String(application.jobId._id || '');
+  }
+
+  return String(application.jobId || '');
+}
+
+function getJobStatusLabel(status) {
+  if (status === 'assigned') {
+    return 'closed';
+  }
+
+  return status || 'open';
+}
+
 function getWorkerProfilePath(application) {
   const workerProfileId =
     application.workerProfileId ||
@@ -349,14 +372,32 @@ function StarPicker({ value, onChange }) {
   );
 }
 
+function buildClientProfileForm(profile) {
+  const preferredLocation = profile?.preferredLocations?.[0] || {};
+
+  return {
+    companyName: profile?.companyName || '',
+    address: profile?.address || '',
+    locationAddressLine: preferredLocation.addressLine || '',
+    locationCity: preferredLocation.city || '',
+    locationState: preferredLocation.state || '',
+    locationPincode: preferredLocation.pincode || '',
+    locationLat: preferredLocation.lat ?? '',
+    locationLng: preferredLocation.lng ?? '',
+  };
+}
+
 export default function ClientDashboardPage() {
   const hasLoadedRef = useRef(false);
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
+  const canEditClientLocation = user?.role === 'client';
   const [jobs, setJobs] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingClientProfile, setSavingClientProfile] = useState(false);
+  const [fetchingClientLocation, setFetchingClientLocation] = useState(false);
   const [updatingApplicationId, setUpdatingApplicationId] = useState('');
   const [updatingBookingId, setUpdatingBookingId] = useState('');
   const [cancellingBookingId, setCancellingBookingId] = useState('');
@@ -365,11 +406,13 @@ export default function ClientDashboardPage() {
   const [bookingSearch, setBookingSearch] = useState('');
   const [bookingFilter, setBookingFilter] = useState('all');
   const [activeWorkflowTab, setActiveWorkflowTab] = useState('applications');
+  const [applicationJobFilter, setApplicationJobFilter] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
     comment: '',
   });
+  const [clientProfileForm, setClientProfileForm] = useState(buildClientProfileForm(null));
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
@@ -381,9 +424,10 @@ export default function ClientDashboardPage() {
 
     async function bootstrap() {
       try {
-        const [postedJobs, bookingList] = await Promise.all([
+        const [postedJobs, bookingList, profile] = await Promise.all([
           jobService.getMyPosted(),
           bookingService.getAll(),
+          canEditClientLocation ? clientService.getMyProfile() : Promise.resolve(null),
         ]);
 
         const jobsWithApplications = postedJobs.filter((job) => Number(job.applicationCount || 0) > 0);
@@ -413,6 +457,9 @@ export default function ClientDashboardPage() {
         setJobs(postedJobs);
         setBookings(bookingList);
         setApplications(nextApplications);
+        if (profile) {
+          setClientProfileForm(buildClientProfileForm(profile));
+        }
 
         if (failedApplicationLoads > 0) {
           showToast('Some applications could not be loaded right now.', 'error');
@@ -425,7 +472,56 @@ export default function ClientDashboardPage() {
     }
 
     bootstrap();
-  }, [showToast]);
+  }, [canEditClientLocation, showToast]);
+
+  async function handleUseCurrentClientLocation() {
+    setFetchingClientLocation(true);
+
+    try {
+      const location = await getBrowserLocation();
+      setClientProfileForm((current) => ({
+        ...current,
+        locationLat: location.lat,
+        locationLng: location.lng,
+      }));
+      showToast('Current location captured. Add city/state if they are empty.');
+    } catch (error) {
+      showToast(error.message || 'Unable to fetch current location.', 'error');
+    } finally {
+      setFetchingClientLocation(false);
+    }
+  }
+
+  async function handleClientProfileSubmit(event) {
+    event.preventDefault();
+    setSavingClientProfile(true);
+
+    try {
+      const preferredLocation = {
+        addressLine: clientProfileForm.locationAddressLine.trim(),
+        city: clientProfileForm.locationCity.trim(),
+        state: clientProfileForm.locationState.trim(),
+        pincode: clientProfileForm.locationPincode.trim(),
+        lat: clientProfileForm.locationLat === '' ? null : Number(clientProfileForm.locationLat),
+        lng: clientProfileForm.locationLng === '' ? null : Number(clientProfileForm.locationLng),
+      };
+      const hasPreferredLocation = Object.values(preferredLocation).some(
+        (value) => value !== '' && value !== null
+      );
+      const updatedProfile = await clientService.updateProfile({
+        companyName: clientProfileForm.companyName.trim(),
+        address: clientProfileForm.address.trim(),
+        preferredLocations: hasPreferredLocation ? [preferredLocation] : [],
+      });
+
+      setClientProfileForm(buildClientProfileForm(updatedProfile));
+      showToast('Client location updated successfully');
+    } catch (error) {
+      showToast(getErrorMessage(error, 'Unable to update client location.'), 'error');
+    } finally {
+      setSavingClientProfile(false);
+    }
+  }
 
   const stats = [
     {
@@ -476,6 +572,25 @@ export default function ClientDashboardPage() {
       const rightTime = right.lastUpdatedAt ? new Date(right.lastUpdatedAt).getTime() : 0;
       return rightTime - leftTime;
     });
+
+  const applicationJobSummaries = jobs
+    .map((job) => ({
+      job,
+      count: applications.filter((application) => getApplicationJobId(application) === String(job._id)).length,
+    }))
+    .sort((left, right) => {
+      const leftTime = left.job.createdAt ? new Date(left.job.createdAt).getTime() : 0;
+      const rightTime = right.job.createdAt ? new Date(right.job.createdAt).getTime() : 0;
+      return rightTime - leftTime;
+    });
+
+  const visibleTrackedApplications =
+    applicationJobFilter === 'all'
+      ? trackedApplications
+      : trackedApplications.filter(
+          ({ application }) => getApplicationJobId(application) === applicationJobFilter
+        );
+  const selectedApplicationJob = jobs.find((job) => String(job._id) === applicationJobFilter);
 
   const trackedBookings = bookings
     .map((booking) => {
@@ -555,16 +670,34 @@ export default function ClientDashboardPage() {
         updatedApplication?.jobId && typeof updatedApplication.jobId === 'object'
           ? updatedApplication.jobId
           : null;
+      const updatedJobId = updatedJobContext?._id ? String(updatedJobContext._id) : '';
 
       setApplications((current) =>
-        current.map((application) =>
-          application._id === applicationId
-            ? {
-                ...updatedApplication,
-                jobContext: updatedJobContext || application.jobContext || null,
-              }
-            : application
-        )
+        current.map((application) => {
+          if (application._id === applicationId) {
+            return {
+              ...updatedApplication,
+              jobContext: updatedJobContext || application.jobContext || null,
+            };
+          }
+
+          if (
+            status === 'accepted_by_client' &&
+            updatedJobId &&
+            getApplicationJobId(application) === updatedJobId &&
+            ['applied', 'verification', 'pending', 'shortlisted'].includes(
+              normalizeApplicationStatus(application.status)
+            )
+          ) {
+            return {
+              ...application,
+              status: 'rejected',
+              jobContext: updatedJobContext || application.jobContext || null,
+            };
+          }
+
+          return application;
+        })
       );
 
       if (updatedJobContext?._id) {
@@ -1088,6 +1221,110 @@ export default function ClientDashboardPage() {
         ))}
       </div>
 
+      {canEditClientLocation && (
+      <section className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Your hiring location</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Workers near this saved location will be shown first in Find Workers.
+            </p>
+          </div>
+          <Link to="/dashboard/workers">
+            <Button variant="ghost" size="sm">
+              Find nearby workers
+            </Button>
+          </Link>
+        </div>
+
+        <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleClientProfileSubmit}>
+          <input
+            type="text"
+            placeholder="Company name"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={clientProfileForm.companyName}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({ ...current, companyName: event.target.value }))
+            }
+          />
+          <input
+            type="text"
+            placeholder="Address label, e.g. Home or Office"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={clientProfileForm.address}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({ ...current, address: event.target.value }))
+            }
+          />
+          <input
+            type="text"
+            placeholder="Address line"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none md:col-span-2"
+            value={clientProfileForm.locationAddressLine}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({
+                ...current,
+                locationAddressLine: event.target.value,
+              }))
+            }
+          />
+          <input
+            type="text"
+            placeholder="City"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={clientProfileForm.locationCity}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({ ...current, locationCity: event.target.value }))
+            }
+          />
+          <input
+            type="text"
+            placeholder="State"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={clientProfileForm.locationState}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({ ...current, locationState: event.target.value }))
+            }
+          />
+          <input
+            type="text"
+            placeholder="Pincode"
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+            value={clientProfileForm.locationPincode}
+            onChange={(event) =>
+              setClientProfileForm((current) => ({ ...current, locationPincode: event.target.value }))
+            }
+          />
+          <input
+            type="text"
+            readOnly
+            placeholder="Coordinates"
+            className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500"
+            value={
+              clientProfileForm.locationLat && clientProfileForm.locationLng
+                ? `${clientProfileForm.locationLat}, ${clientProfileForm.locationLng}`
+                : ''
+            }
+          />
+          <div className="flex flex-wrap gap-3 md:col-span-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={fetchingClientLocation}
+              onClick={handleUseCurrentClientLocation}
+            >
+              <MapPin size={16} />
+              Use current location
+            </Button>
+            <Button type="submit" variant="primary" size="sm" loading={savingClientProfile}>
+              Save location
+            </Button>
+          </div>
+        </form>
+      </section>
+      )}
+
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
@@ -1114,7 +1351,7 @@ export default function ClientDashboardPage() {
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {job.status}
+                      {getJobStatusLabel(job.status)}
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-500">
@@ -1219,13 +1456,46 @@ export default function ClientDashboardPage() {
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-            {trackedApplications.length} applications
+            {visibleTrackedApplications.length} shown / {trackedApplications.length} total
           </span>
         </div>
 
+        <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Filter applicants by posted job
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setApplicationJobFilter('all')}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                applicationJobFilter === 'all'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              All jobs ({trackedApplications.length})
+            </button>
+            {applicationJobSummaries.map(({ job, count }) => (
+              <button
+                key={`application-job-filter-${job._id}`}
+                type="button"
+                onClick={() => setApplicationJobFilter(String(job._id))}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  applicationJobFilter === String(job._id)
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {job.title} ({count})
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-5 max-h-[36rem] space-y-4 overflow-y-auto pr-1">
-          {trackedApplications.length > 0 ? (
-            trackedApplications.map(({ application, tracking, jobContext, primaryAction, secondaryAction, lastUpdatedAt }) => {
+          {visibleTrackedApplications.length > 0 ? (
+            visibleTrackedApplications.map(({ application, tracking, jobContext, primaryAction, secondaryAction, lastUpdatedAt }) => {
               const workerProfilePath = getWorkerProfilePath(application);
               const showProfileLink = Boolean(workerProfilePath);
               const isVerificationStep = ['applied', 'verification'].includes(tracking.normalizedStatus);
@@ -1410,7 +1680,11 @@ export default function ClientDashboardPage() {
             })
           ) : (
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm text-slate-500">
-              No applications received yet.
+              {applicationJobFilter !== 'all' && selectedApplicationJob
+                ? `No workers have applied to "${selectedApplicationJob.title}" yet.`
+                : trackedApplications.length > 0
+                ? 'No applications found for this selected job.'
+                : 'No applications received yet.'}
             </div>
           )}
         </div>

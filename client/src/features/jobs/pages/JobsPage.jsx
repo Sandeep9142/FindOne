@@ -130,18 +130,21 @@ export default function JobsPage() {
       setError('');
 
       try {
-        const [categoryList, jobList, workerProfile] = await Promise.all([
+        const [categoryList, workerProfile] = await Promise.all([
           categoryService.getAll(),
-          jobService.getAll({
-            openOnly: 'true',
-            matchWorkerCategories: isWorker ? 'true' : undefined,
-            limit: 24,
-          }),
           isWorker && isAuthenticated ? workerService.getMyProfile() : Promise.resolve(null),
         ]);
         const matchedWorkerCategories = Array.isArray(workerProfile?.categories)
           ? workerProfile.categories
           : [];
+        const defaultWorkerCategoryId = matchedWorkerCategories[0]?._id || '';
+        const resolvedCategoryId = isWorker ? defaultWorkerCategoryId : '';
+        const jobList = await jobService.getAll({
+          categoryId: resolvedCategoryId || undefined,
+          openOnly: 'true',
+          matchWorkerCategories: isWorker ? 'true' : undefined,
+          limit: 24,
+        });
 
         if (!isActive) {
           return;
@@ -152,12 +155,12 @@ export default function JobsPage() {
         setJobs(jobList);
         setFilters((current) => ({
           ...current,
-          categoryId:
-            current.categoryId &&
-            matchedWorkerCategories.length > 0 &&
-            !matchedWorkerCategories.some((category) => category._id === current.categoryId)
-              ? ''
-              : current.categoryId,
+          categoryId: isWorker
+            ? current.categoryId &&
+              matchedWorkerCategories.some((category) => category._id === current.categoryId)
+              ? current.categoryId
+              : defaultWorkerCategoryId
+            : current.categoryId,
         }));
         if (categoryList[0]) {
           setJobForm((current) => ({
