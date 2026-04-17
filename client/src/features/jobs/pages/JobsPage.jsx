@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, MapPin, Search } from 'lucide-react';
+import { Briefcase, MapPin, Search, Trash2 } from 'lucide-react';
 import Button from '@components/common/Button';
 import { categoryService, jobService, workerService } from '@services';
 import { useAuthStore, useUIStore } from '@store';
@@ -21,6 +21,10 @@ function formatBudget(job) {
   return `Rs ${max || min || 0}${unit}`;
 }
 
+function getEntityId(entity) {
+  return String(entity?._id || entity?.id || entity || '');
+}
+
 export default function JobsPage() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -36,6 +40,7 @@ export default function JobsPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [applyingId, setApplyingId] = useState('');
+  const [deletingId, setDeletingId] = useState('');
   const [filters, setFilters] = useState({
     q: '',
     categoryId: '',
@@ -278,6 +283,30 @@ export default function JobsPage() {
       showToast(getErrorMessage(createError, 'Unable to create the job.'), 'error');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteJob(job) {
+    const jobId = job?._id;
+
+    if (!jobId || deletingId) {
+      return;
+    }
+
+    if (!window.confirm(`Delete "${job.title}"? This will also remove its applications.`)) {
+      return;
+    }
+
+    setDeletingId(jobId);
+
+    try {
+      await jobService.delete(jobId);
+      setJobs((current) => current.filter((currentJob) => currentJob._id !== jobId));
+      showToast('Job deleted successfully');
+    } catch (deleteError) {
+      showToast(getErrorMessage(deleteError, 'Unable to delete this job.'), 'error');
+    } finally {
+      setDeletingId('');
     }
   }
 
@@ -540,11 +569,15 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="mt-10 grid gap-6">
-          {jobs.map((job) => (
-            <article
-              key={job._id}
-              className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
-            >
+          {jobs.map((job) => {
+            const isPostedByCurrentUser =
+              isClientOrAdmin && getEntityId(job.clientId) === getEntityId(user);
+
+            return (
+              <article
+                key={job._id}
+                className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
+              >
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
@@ -598,11 +631,26 @@ export default function JobsPage() {
                       Apply now
                     </Button>
                   ) : isClientOrAdmin ? (
-                    <Link to="/workers">
-                      <Button variant="outline" size="lg" className="w-full justify-center">
-                        Hire a worker
-                      </Button>
-                    </Link>
+                    <>
+                      <Link to="/workers">
+                        <Button variant="outline" size="lg" className="w-full justify-center">
+                          Hire a worker
+                        </Button>
+                      </Link>
+                      {isPostedByCurrentUser && (
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="lg"
+                          className="w-full justify-center"
+                          loading={deletingId === job._id}
+                          onClick={() => handleDeleteJob(job)}
+                        >
+                          <Trash2 size={18} />
+                          Delete job
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <Link to="/login">
                       <Button variant="primary" size="lg" className="w-full justify-center">
@@ -612,8 +660,9 @@ export default function JobsPage() {
                   )}
                 </div>
               </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

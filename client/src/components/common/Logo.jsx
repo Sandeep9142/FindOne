@@ -20,7 +20,7 @@ export default function Logo({ variant = 'dark', size = 'md', className }) {
       )}
     >
       <img
-        src="/findone-logo.jpeg"
+        src="/findone-logo.png"
         alt="FindOne"
         className={cn('rounded-xl object-cover flex-shrink-0', icon)}
       />

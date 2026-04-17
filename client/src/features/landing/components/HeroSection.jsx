@@ -271,7 +271,7 @@ export default function HeroSection() {
                     <div className="w-5 h-5 rounded-full bg-violet-200 ring-2 ring-white" />
                     <div className="w-5 h-5 rounded-full bg-amber-200 ring-2 ring-white" />
                   </div>
-                  <span className="text-[10px] font-semibold text-slate-600">50K+ workers</span>
+                  <span className="text-[10px] font-semibold text-slate-600">100+ workers</span>
                 </div>
               </motion.div>
 

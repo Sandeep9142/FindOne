@@ -48,7 +48,7 @@ export default function CTASection() {
               transition={{ delay: 0.2 }}
             >
               <Sparkles size={14} className="text-amber-300" />
-              <span className="text-xs font-semibold text-white/90">Join 50,000+ users</span>
+              <span className="text-xs font-semibold text-white/90">Join 100+ users</span>
             </motion.div>
 
             <h2 className="text-heading-1 text-white max-w-xl mx-auto">Ready to get started?</h2>

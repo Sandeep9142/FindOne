@@ -118,7 +118,7 @@ export default function ForWorkersSection() {
               <span className="gradient-text">better pay</span>
             </h2>
             <p className="mt-4 text-lg text-slate-500 max-w-md leading-relaxed">
-              Join 50,000+ workers who've transformed their income with FindOne.
+              Join 100+ workers who've transformed their income with FindOne.
               No middlemen, no commission cuts, just fair work.
             </p>
 
