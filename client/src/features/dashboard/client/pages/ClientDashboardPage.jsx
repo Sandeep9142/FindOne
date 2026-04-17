@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, CheckCircle, Clock, ListChecks, MapPin, Search, Star, Users } from 'lucide-react';
+import { Briefcase, CheckCircle, Clock, ListChecks, MapPin, Search, Star, Trash2, Users } from 'lucide-react';
 import Button from '@components/common/Button';
 import { Modal } from '@components/ui';
 import { bookingService, clientService, jobService, paymentService } from '@services';
@@ -401,6 +401,7 @@ export default function ClientDashboardPage() {
   const [updatingApplicationId, setUpdatingApplicationId] = useState('');
   const [updatingBookingId, setUpdatingBookingId] = useState('');
   const [cancellingBookingId, setCancellingBookingId] = useState('');
+  const [deletingJobId, setDeletingJobId] = useState('');
   const [payingApplicationId, setPayingApplicationId] = useState('');
   const [payingBookingId, setPayingBookingId] = useState('');
   const [bookingSearch, setBookingSearch] = useState('');
@@ -829,6 +830,33 @@ export default function ClientDashboardPage() {
       });
       rzp.open();
     });
+  }
+
+  async function handleDeletePostedJob(job) {
+    const jobId = job?._id;
+
+    if (!jobId || deletingJobId) {
+      return;
+    }
+
+    if (!window.confirm(`Delete "${job.title}"? This will also remove its applications.`)) {
+      return;
+    }
+
+    setDeletingJobId(jobId);
+
+    try {
+      await jobService.delete(jobId);
+      setJobs((current) => current.filter((currentJob) => currentJob._id !== jobId));
+      setApplications((current) =>
+        current.filter((application) => getApplicationJobId(application) !== jobId)
+      );
+      showToast('Job deleted successfully');
+    } catch (error) {
+      showToast(getErrorMessage(error, 'Unable to delete this job.'), 'error');
+    } finally {
+      setDeletingJobId('');
+    }
   }
 
   function markApplicationJobPaymentStatus(jobId, paymentStatus) {
@@ -1354,9 +1382,21 @@ export default function ClientDashboardPage() {
                       {getJobStatusLabel(job.status)}
                     </span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-500">
-                    <span>{formatCurrency(job.budgetMax || job.budgetMin)}</span>
-                    <span>{job.applicationCount || 0} applications</span>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+                    <div className="flex flex-wrap gap-4">
+                      <span>{formatCurrency(job.budgetMax || job.budgetMin)}</span>
+                      <span>{job.applicationCount || 0} applications</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      loading={deletingJobId === job._id}
+                      onClick={() => handleDeletePostedJob(job)}
+                    >
+                      <Trash2 size={15} />
+                      Delete
+                    </Button>
                   </div>
                 </article>
               ))

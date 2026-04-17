@@ -98,7 +98,7 @@ export default function RegisterPage() {
     <div>
       <h1 className="text-2xl font-bold text-dark">Create your account</h1>
       <p className="mt-2 text-sm text-slate-500">
-        Join 50,000+ users on FindOne
+        Join 100+ users on FindOne
       </p>
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>

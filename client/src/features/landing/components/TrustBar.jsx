@@ -2,9 +2,9 @@ import { motion } from 'framer-motion';
 import { Users, MapPin, Briefcase, Star } from 'lucide-react';
 
 const metrics = [
-  { icon: Users, value: '50,000+', label: 'Active Workers' },
+  { icon: Users, value: '100+', label: 'Active Workers' },
   { icon: MapPin, value: '100+', label: 'Cities' },
-  { icon: Briefcase, value: '200K+', label: 'Jobs Done' },
+  { icon: Briefcase, value: '100+', label: 'Jobs Done' },
   { icon: Star, value: '4.8', label: 'Avg. Rating' },
 ];
 

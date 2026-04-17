@@ -23,7 +23,7 @@ export default function AuthLayout() {
             Find Skilled Professionals Instantly
           </h2>
           <p className="mt-4 text-slate-400 text-body-lg">
-            Connect with 50,000+ verified workers. Hire smarter. Earn better.
+            Connect with 100+ verified workers. Hire smarter. Earn better.
           </p>
         </div>
       </div>

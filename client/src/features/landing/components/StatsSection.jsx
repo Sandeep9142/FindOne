@@ -1,54 +1,90 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { STATS } from '@data/stats';
 
-/* ── Animated number counter ── */
-function AnimatedValue({ value, inView }) {
-  const [display, setDisplay] = useState(value);
-  const numericMatch = value.match(/^([\d,.]+)/);
+function getValueParts(value) {
+  const match = String(value).match(/^([\d,.]+)(.*)$/);
+
+  if (!match) {
+    return { target: null, suffix: '', hasDecimal: false };
+  }
+
+  return {
+    target: Number(match[1].replace(/,/g, '')),
+    suffix: match[2] || '',
+    hasDecimal: match[1].includes('.'),
+  };
+}
+
+function formatCounterValue(value, hasDecimal) {
+  if (hasDecimal) {
+    return value.toFixed(1);
+  }
+
+  return Math.round(value).toLocaleString('en-IN');
+}
+
+function AnimatedValue({ value, active }) {
+  const { target, suffix, hasDecimal } = getValueParts(value);
+  const startValue = target === null ? value : `${hasDecimal ? '1.0' : '1'}${suffix}`;
+  const [display, setDisplay] = useState(startValue);
 
   useEffect(() => {
-    if (!inView || !numericMatch) return;
+    if (target === null) {
+      setDisplay(value);
+      return undefined;
+    }
 
-    const target = parseFloat(numericMatch[1].replace(/,/g, ''));
-    const suffix = value.replace(numericMatch[1], '');
-    const duration = 1800;
-    const start = performance.now();
+    if (!active) {
+      setDisplay(startValue);
+      return undefined;
+    }
 
-    const animate = (now) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease-out cubic
+    let frameId = 0;
+    const from = 1;
+    const duration = 1500;
+    const startedAt = performance.now();
+
+    function animate(now) {
+      const progress = Math.min((now - startedAt) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(eased * target);
+      const current = from + (target - from) * eased;
 
-      const formatted = target >= 100
-        ? current.toLocaleString('en-IN')
-        : target % 1 !== 0
-          ? (eased * target).toFixed(1)
-          : current.toString();
+      setDisplay(`${formatCounterValue(current, hasDecimal)}${suffix}`);
 
-      setDisplay(formatted + suffix);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    }
 
-      if (progress < 1) requestAnimationFrame(animate);
-    };
+    frameId = requestAnimationFrame(animate);
 
-    requestAnimationFrame(animate);
-  }, [inView, value, numericMatch]);
+    return () => cancelAnimationFrame(frameId);
+  }, [active, hasDecimal, startValue, suffix, target, value]);
 
   return <>{display}</>;
 }
 
+/* ── Animated number counter ── */
 export default function StatsSection() {
   const ref = useRef(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setInView(true); },
-      { threshold: 0.3 }
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.35 }
     );
-    if (ref.current) observer.observe(ref.current);
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
     return () => observer.disconnect();
   }, []);
 
@@ -78,7 +114,7 @@ export default function StatsSection() {
               className={`text-center px-6 ${i > 0 ? 'lg:border-l lg:border-white/10' : ''}`}
             >
               <span className="block text-3xl lg:text-5xl font-extrabold text-white tracking-tight">
-                <AnimatedValue value={value} inView={inView} />
+                <AnimatedValue value={value} active={inView} />
               </span>
               <span className="block mt-2 text-sm text-slate-400 font-medium">{label}</span>
             </div>
