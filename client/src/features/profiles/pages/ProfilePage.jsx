@@ -17,6 +17,10 @@ function formatDate(value) {
   return new Date(value).toLocaleString();
 }
 
+function formatCurrency(value) {
+  return `Rs ${Number(value || 0).toLocaleString()}`;
+}
+
 export default function ProfilePage() {
   const { id } = useParams();
   const loadedWorkerIdRef = useRef('');
@@ -43,6 +47,7 @@ export default function ProfilePage() {
     description: '',
     bookingDate: '',
     timeSlot: '',
+    hours: '1',
     amount: '',
     city: '',
     state: '',
@@ -80,7 +85,9 @@ export default function ProfilePage() {
           ...current,
           categoryId: current.categoryId || nextAvailableCategories[0]?._id || '',
           title: current.title || `Book ${workerProfile.userId?.fullName || 'worker'}`,
-          amount: current.amount || String(workerProfile.hourlyRate || ''),
+          amount:
+            current.amount ||
+            String(Number(workerProfile.hourlyRate || 0) * Number(current.hours || 1)),
         }));
       } catch (fetchError) {
         setError(getErrorMessage(fetchError, 'Unable to load this worker profile.'));
@@ -115,6 +122,20 @@ export default function ProfilePage() {
       return;
     }
 
+    const workerHourlyRate = Number(worker.hourlyRate || 0);
+    const bookingHours = Number(bookingForm.hours || 0);
+    const bookingAmount = workerHourlyRate * bookingHours;
+
+    if (!bookingHours || bookingHours <= 0) {
+      showToast('Please enter valid booking hours.', 'error');
+      return;
+    }
+
+    if (workerHourlyRate > 0 && bookingAmount < workerHourlyRate) {
+      showToast(`Booking amount should be at least ${formatCurrency(workerHourlyRate)}.`, 'error');
+      return;
+    }
+
     setBookingLoading(true);
 
     try {
@@ -126,7 +147,7 @@ export default function ProfilePage() {
         bookingDate: new Date(bookingForm.bookingDate).toISOString(),
         timeSlot: bookingForm.timeSlot,
         pricingType: 'fixed',
-        amount: Number(bookingForm.amount || 0),
+        amount: bookingAmount,
         address: {
           addressLine: bookingForm.addressLine,
           city: bookingForm.city,
@@ -248,6 +269,7 @@ export default function ProfilePage() {
   }
 
   const displayName = worker.userId?.fullName || 'Worker';
+  const workerHourlyRate = Number(worker.hourlyRate || 0);
   const workerUserId = worker.userId?._id;
   const isOwnProfile = user?._id && workerUserId && user._id === workerUserId;
   const hasUserReview = Boolean(
@@ -296,7 +318,7 @@ export default function ProfilePage() {
                     <Star size={14} className="fill-current" />
                     {worker.ratingAverage?.toFixed?.(1) || '0.0'} ({worker.ratingCount || 0} reviews)
                   </span>
-                  <span>Rs {worker.hourlyRate || 0}/hr</span>
+                  <span>{formatCurrency(workerHourlyRate)}/hr</span>
                   <span>{worker.experienceYears || 0} years experience</span>
                   <span>{worker.isAvailableNow ? 'Available now' : 'Schedule ahead'}</span>
                 </div>
@@ -574,15 +596,28 @@ export default function ProfilePage() {
 
               <input
                 type="number"
-                min="0"
+                min="0.5"
+                step="0.5"
                 required
-                placeholder="Amount"
+                placeholder="Hours"
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
-                value={bookingForm.amount}
-                onChange={(event) =>
-                  setBookingForm((current) => ({ ...current, amount: event.target.value }))
-                }
+                value={bookingForm.hours}
+                onChange={(event) => {
+                  const hours = event.target.value;
+                  setBookingForm((current) => ({
+                    ...current,
+                    hours,
+                    amount: String(workerHourlyRate * Number(hours || 0)),
+                  }));
+                }}
               />
+
+              <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+                <p className="font-semibold">Amount: {formatCurrency(workerHourlyRate * Number(bookingForm.hours || 0))}</p>
+                <p className="mt-1 text-xs">
+                  {formatCurrency(workerHourlyRate)}/hr x {Number(bookingForm.hours || 0)} hour(s)
+                </p>
+              </div>
 
               <input
                 type="text"

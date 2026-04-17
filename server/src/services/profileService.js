@@ -19,6 +19,89 @@ function sanitizeObjectArray(value) {
   return value.filter((item) => item && typeof item === 'object');
 }
 
+function parseOptionalNumber(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function sanitizeLocationArray(value) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const lat = parseOptionalNumber(item.lat);
+      const lng = parseOptionalNumber(item.lng);
+
+      return {
+        addressLine: String(item.addressLine || '').trim(),
+        city: String(item.city || '').trim(),
+        state: String(item.state || '').trim(),
+        pincode: String(item.pincode || '').trim(),
+        lat,
+        lng,
+      };
+    })
+    .filter(
+      (item) =>
+        item &&
+        (item.addressLine ||
+          item.city ||
+          item.state ||
+          item.pincode ||
+          (Number.isFinite(item.lat) && Number.isFinite(item.lng)))
+    );
+}
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getDistanceKm(start, end) {
+  const startLat = Number(start?.lat);
+  const startLng = Number(start?.lng);
+  const endLat = Number(end?.lat);
+  const endLng = Number(end?.lng);
+
+  if (![startLat, startLng, endLat, endLng].every(Number.isFinite)) {
+    return null;
+  }
+
+  const toRadians = (degree) => (degree * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(endLat - startLat);
+  const deltaLng = toRadians(endLng - startLng);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(startLat)) *
+      Math.cos(toRadians(endLat)) *
+      Math.sin(deltaLng / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getNearestWorkerDistanceKm(worker, clientLocation) {
+  const serviceAreas = Array.isArray(worker.serviceAreas) ? worker.serviceAreas : [];
+  const distances = serviceAreas
+    .map((serviceArea) => getDistanceKm(clientLocation, serviceArea))
+    .filter((distance) => Number.isFinite(distance));
+
+  if (distances.length === 0) {
+    return null;
+  }
+
+  return Math.min(...distances);
+}
+
 function buildUserProfile(user) {
   return user?.toSafeObject ? user.toSafeObject() : user;
 }
@@ -79,7 +162,7 @@ function buildWorkerUpdatePayload(payload) {
     ...(sanitizeStringArray(payload.portfolioImages) !== undefined
       ? { portfolioImages: sanitizeStringArray(payload.portfolioImages) }
       : {}),
-    ...(sanitizeObjectArray(payload.serviceAreas) !== undefined ? { serviceAreas: sanitizeObjectArray(payload.serviceAreas) } : {}),
+    ...(sanitizeLocationArray(payload.serviceAreas) !== undefined ? { serviceAreas: sanitizeLocationArray(payload.serviceAreas) } : {}),
     ...(sanitizeObjectArray(payload.availability) !== undefined ? { availability: sanitizeObjectArray(payload.availability) } : {}),
   };
 }
@@ -88,8 +171,8 @@ function buildClientUpdatePayload(payload) {
   return {
     ...(payload.companyName !== undefined ? { companyName: String(payload.companyName).trim() } : {}),
     ...(payload.address !== undefined ? { address: String(payload.address).trim() } : {}),
-    ...(sanitizeObjectArray(payload.preferredLocations) !== undefined
-      ? { preferredLocations: sanitizeObjectArray(payload.preferredLocations) }
+    ...(sanitizeLocationArray(payload.preferredLocations) !== undefined
+      ? { preferredLocations: sanitizeLocationArray(payload.preferredLocations) }
       : {}),
   };
 }
@@ -231,16 +314,52 @@ export async function listWorkers(query) {
     filters.isAvailableNow = true;
   }
 
+  const nearLat = Number(query.nearLat);
+  const nearLng = Number(query.nearLng);
+  const radiusKm = Math.min(Math.max(Number(query.radiusKm) || 25, 1), 100);
+  const hasCoordinates = Number.isFinite(nearLat) && Number.isFinite(nearLng);
+
+  if (!hasCoordinates) {
+    if (query.pincode) {
+      filters['serviceAreas.pincode'] = String(query.pincode).trim();
+    } else {
+      if (query.city) {
+        filters['serviceAreas.city'] = new RegExp(`^${escapeRegex(query.city)}$`, 'i');
+      }
+
+      if (query.state) {
+        filters['serviceAreas.state'] = new RegExp(`^${escapeRegex(query.state)}$`, 'i');
+      }
+    }
+  }
+
   const searchText = query.q?.trim();
   if (searchText) {
     filters.$text = { $search: searchText };
   }
 
+  const limit = Math.min(Number(query.limit) || 20, 50);
   const workers = await WorkerProfile.find(filters)
     .populate('userId', 'fullName avatarUrl role isVerified')
     .populate('categories', 'name slug icon')
     .sort(searchText ? { score: { $meta: 'textScore' }, ratingAverage: -1 } : { ratingAverage: -1, jobsCompleted: -1 })
-    .limit(Math.min(Number(query.limit) || 20, 50));
+    .limit(hasCoordinates ? 200 : limit);
+
+  if (hasCoordinates) {
+    const clientLocation = { lat: nearLat, lng: nearLng };
+
+    return workers
+      .map((worker) => {
+        const plainWorker = worker.toObject ? worker.toObject() : worker;
+        return {
+          ...plainWorker,
+          distanceKm: getNearestWorkerDistanceKm(plainWorker, clientLocation),
+        };
+      })
+      .filter((worker) => Number.isFinite(worker.distanceKm) && worker.distanceKm <= radiusKm)
+      .sort((left, right) => left.distanceKm - right.distanceKm)
+      .slice(0, limit);
+  }
 
   return workers;
 }

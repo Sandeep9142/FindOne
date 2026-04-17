@@ -249,6 +249,30 @@ async function ensureNoCompetingAcceptedApplication(application) {
   }
 }
 
+async function rejectCompetingApplications(application, requester) {
+  const competingApplications = await JobApplication.find({
+    jobId: application.jobId._id,
+    _id: { $ne: application._id },
+    status: { $in: ['applied', 'verification', 'pending', 'shortlisted'] },
+  });
+
+  if (competingApplications.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    competingApplications.map((competingApplication) => {
+      competingApplication.status = 'rejected';
+      appendApplicationStatusHistory(competingApplication, {
+        status: 'rejected',
+        requester,
+        note: 'Another worker was accepted for this job.',
+      });
+      return competingApplication.save();
+    })
+  );
+}
+
 async function syncJobFromApplicationStatus(application, status) {
   const job = await Job.findById(application.jobId._id);
 
@@ -566,6 +590,10 @@ export async function updateApplicationStatus(applicationId, requester, payload)
   application.status = nextStatus;
   appendApplicationStatusHistory(application, { status: nextStatus, requester, note });
   await application.save();
+
+  if (nextStatus === 'accepted_by_client') {
+    await rejectCompetingApplications(application, requester);
+  }
 
   await syncJobFromApplicationStatus(application, nextStatus);
 
