@@ -1,27 +1,33 @@
-import { Search, Users, Zap, UserPlus, Lightbulb, Coins } from 'lucide-react';
+import {
+  Briefcase,
+  CalendarCheck,
+  CreditCard,
+  ListChecks,
+  Search,
+  UserPlus,
+} from 'lucide-react';
 
-/* ─────────────────────────────────────────────
-   How It Works — Steps Data
-   ───────────────────────────────────────────── */
+// How It Works steps are written from the flows implemented in the app:
+// workers directory, direct bookings, jobs, dashboards, payments, and reviews.
 
 export const CLIENT_STEPS = [
   {
     number: '01',
     icon: Search,
-    title: 'Post Your Requirement',
-    description: 'Describe what you need — our AI understands context and finds the best match.',
+    title: 'Find Nearby Workers',
+    description: 'Search by skill, service category, availability, and your saved client location.',
   },
   {
     number: '02',
-    icon: Users,
-    title: 'Get AI-Matched Workers',
-    description: 'Review verified profiles, ratings, and AI compatibility scores.',
+    icon: CalendarCheck,
+    title: 'Create a Booking',
+    description: 'Open a worker profile, choose the service, date, hours, address, and confirm.',
   },
   {
     number: '03',
-    icon: Zap,
-    title: 'Book & Pay Securely',
-    description: 'Confirm booking, track progress, and pay through our secure system.',
+    icon: CreditCard,
+    title: 'Track, Pay, Review',
+    description: 'Follow booking progress in your dashboard, pay after completion, then rate the worker.',
   },
 ];
 
@@ -29,19 +35,19 @@ export const WORKER_STEPS = [
   {
     number: '01',
     icon: UserPlus,
-    title: 'Create Your Profile',
-    description: 'Add your skills, experience, and availability. AI optimizes your profile.',
+    title: 'Build Your Profile',
+    description: 'Add your skills, service categories, rate, experience, photo, and service location.',
   },
   {
     number: '02',
-    icon: Lightbulb,
-    title: 'Get Matched to Jobs',
-    description: 'Receive AI-curated job matches based on your strengths and location.',
+    icon: Briefcase,
+    title: 'Apply or Accept Work',
+    description: 'Apply to open jobs that match your categories or accept direct client bookings.',
   },
   {
     number: '03',
-    icon: Coins,
-    title: 'Earn & Grow',
-    description: 'Complete jobs, collect payments instantly, build your reputation.',
+    icon: ListChecks,
+    title: 'Update Progress',
+    description: 'Move work through started, completed, payment, and review steps from your dashboard.',
   },
 ];
